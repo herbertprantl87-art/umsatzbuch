@@ -271,7 +271,10 @@ Amazon Gesamt: 25€
   if(!cfg.supabaseUrl||!cfg.supabaseAnonKey||cfg.supabaseUrl.indexOf('DEIN-PROJEKT')>-1){
     $('cfgMsg').hidden=false;$('cfgMsg').textContent='Die Seite ist noch nicht mit der Datenbank verbunden. Bitte in config.js die Supabase-URL und den Key eintragen.';return;
   }
-  var sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
+  // Anmeldung nur im Tab speichern (sessionStorage): Tab zu = abgemeldet.
+  // Alte, dauerhaft gespeicherte Anmeldungen aus früheren Versionen entfernen.
+  try{Object.keys(localStorage).forEach(function(k){if(k.indexOf('sb-')===0)localStorage.removeItem(k)})}catch(e){}
+  var sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{storage:window.sessionStorage,persistSession:true}});
 
   var state={pay:[],goals:{}},goalIds={};
   var now=new Date(),selY=now.getFullYear(),selM=now.getMonth();
