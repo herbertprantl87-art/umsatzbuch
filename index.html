@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Umsatzbuch</title>
-<meta name="theme-color" content="#0f6e66">
+<meta name="theme-color" content="#4b573f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Umsatzbuch">
@@ -17,17 +17,12 @@
 <style>
 /* Layout: Kopfzeile mit Monatswahl, Kennzahlenreihe, dann Ziel + Wochentage nebeneinander, darunter Eingabe und Tagesliste */
 :root{
-  --bg:#4b573f; --on-bg:#f4f6ea; --surface:#ffffff; --line:#dbe4e1; --fg:#17302c; --muted:#5d746f;
-  --accent:#0f6e66; --accent-soft:#d7ece8; --gold:#c98a12; --gold-soft:#f6e7c6; --warn:#b4432f;
+  /* Eine feste Optik: olivgrüner Hintergrund, schwarze Karten, helle Schrift */
+  --bg:#4b573f; --on-bg:#f4f6ea; --surface:#000000; --line:#2e3529; --fg:#eef1e6; --muted:#a4ae96;
+  --accent:#4fc2b4; --accent-soft:#18332e; --gold:#e5ad45; --gold-soft:#2b2412; --warn:#ef8670;
   --f-display:"Sora",system-ui,sans-serif; --f-body:"Figtree",system-ui,sans-serif;
-  color-scheme:light;
+  color-scheme:dark;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#2a3123; --on-bg:#e9eedb; --surface:#17221f; --line:#2a3a36; --fg:#e4efec; --muted:#93aaa4;
-  --accent:#4fc2b4; --accent-soft:#1d3a35; --gold:#e5ad45; --gold-soft:#3a2f17; --warn:#ef8670; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#2a3123; --on-bg:#e9eedb; --surface:#17221f; --line:#2a3a36; --fg:#e4efec; --muted:#93aaa4;
-  --accent:#4fc2b4; --accent-soft:#1d3a35; --gold:#e5ad45; --gold-soft:#3a2f17; --warn:#ef8670; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
