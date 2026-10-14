@@ -230,6 +230,11 @@
   }
 
   function render(){
+    // Umsatz heute: immer der aktuelle Tag, unabhängig vom gewählten Monat
+    var h=new Date(),heute=iso(h.getFullYear(),h.getMonth(),h.getDate()),sumHeute=0;
+    state.pay.forEach(function(p){if(p.date===heute)sumHeute+=p.amount});
+    $('kToday').textContent=eur.format(sumHeute);
+
     var rows=monthRows(selY,selM),t=totals(rows);
     var py=selM===0?selY-1:selY,pm=selM===0?11:selM-1;
     var isCur=selY===now.getFullYear()&&selM===now.getMonth();

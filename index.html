@@ -51,6 +51,9 @@ button.link:hover{color:var(--accent)}
 .note{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:var(--gold-soft);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:.9rem}
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.today{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 20px;display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.today .label{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.today .value{font-family:var(--f-display);font-size:2rem;font-weight:700;color:var(--accent)}
 .kpi .label{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 .kpi .value{font-family:var(--f-display);font-size:1.55rem;font-weight:600;margin-top:4px}
 .kpi .sub{font-size:.82rem;color:var(--muted);margin-top:2px}
@@ -182,6 +185,11 @@ body{margin:0}
     <span>Angemeldet als <b id="userMail"></b></span>
     <span class="bar-btns"><button type="button" class="link" id="btnExport">Sicherung herunterladen</button><button type="button" class="link" id="btnLogout">Abmelden</button></span>
   </div>
+
+  <section class="today" aria-label="Umsatz heute">
+    <div class="label">Umsatz heute</div>
+    <div class="value num" id="kToday">0,00 €</div>
+  </section>
 
   <section class="panel">
     <h2>Zahlung eintragen</h2>
