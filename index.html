@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Umsatzbuch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: Kopfzeile mit Monatswahl, Kennzahlenreihe, dann Ziel + Wochentage nebeneinander, darunter Eingabe und Tagesliste */
+:root{
+  --bg:#f3f6f5; --surface:#ffffff; --line:#dbe4e1; --fg:#17302c; --muted:#5d746f;
+  --accent:#0f6e66; --accent-soft:#d7ece8; --gold:#c98a12; --gold-soft:#f6e7c6; --warn:#b4432f;
+  --f-display:"Sora",system-ui,sans-serif; --f-body:"Figtree",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1715; --surface:#17221f; --line:#2a3a36; --fg:#e4efec; --muted:#93aaa4;
+  --accent:#4fc2b4; --accent-soft:#1d3a35; --gold:#e5ad45; --gold-soft:#3a2f17; --warn:#ef8670; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1715; --surface:#17221f; --line:#2a3a36; --fg:#e4efec; --muted:#93aaa4;
+  --accent:#4fc2b4; --accent-soft:#1d3a35; --gold:#e5ad45; --gold-soft:#3a2f17; --warn:#ef8670; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1120px;margin:0 auto;display:grid;gap:20px}
+h1,h2{font-family:var(--f-display);margin:0;text-wrap:balance}
+h1{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+h2{font-size:1rem;font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+header p{margin:2px 0 0;color:var(--muted);font-size:.9rem}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+select,input,textarea,button{font:inherit;color:var(--fg)}
+select,input,textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+select:focus-visible,input:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{cursor:pointer;border-radius:8px;padding:9px 14px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+button.link{border:0;background:none;padding:4px 6px;color:var(--muted);font-weight:500}
+button.link:hover{color:var(--accent)}
+.note{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:var(--gold-soft);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:.9rem}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.kpi .label{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.kpi .value{font-family:var(--f-display);font-size:1.55rem;font-weight:600;margin-top:4px}
+.kpi .sub{font-size:.82rem;color:var(--muted);margin-top:2px}
+.up{color:var(--accent)} .down{color:var(--warn)}
+.row{display:grid;grid-template-columns:3fr 2fr;gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;min-width:0;display:grid;gap:14px;align-content:start}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.goal-bar{position:relative;height:22px;border-radius:6px;background:var(--accent-soft);overflow:visible}
+.goal-bar .fc{position:absolute;inset:0 auto 0 0;border-radius:6px;background:repeating-linear-gradient(135deg,var(--accent-soft) 0 6px,color-mix(in srgb,var(--accent) 35%,transparent) 6px 12px)}
+.goal-bar .cur{position:absolute;inset:0 auto 0 0;border-radius:6px;background:var(--accent)}
+.goal-bar .mark{position:absolute;top:-8px;bottom:-8px;width:2px;background:var(--gold)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.85rem;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.goal-set{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem;color:var(--muted)}
+.goal-set input{width:130px}
+.bars{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;align-items:end;height:170px}
+.bar{display:grid;grid-template-rows:auto 1fr auto;height:100%;text-align:center;gap:4px;font-size:.75rem}
+.bar .track{display:flex;align-items:flex-end;justify-content:center}
+.bar .fill{width:70%;max-width:34px;border-radius:5px 5px 2px 2px;background:var(--accent);min-height:2px}
+.bar .v{color:var(--muted)} .bar .d{font-weight:600}
+form.entry{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:10px;align-items:end}
+form.entry label{display:grid;gap:4px;font-size:.8rem;color:var(--muted);font-weight:600;min-width:0}
+form.entry input{width:100%}
+.msg{font-size:.85rem;color:var(--accent);min-height:1.2em}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th{text-align:left;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.r,th.r{text-align:right}
+tr.sum td{font-weight:700;border-bottom:0;background:var(--accent-soft)}
+.empty{color:var(--muted);text-align:center;padding:24px}
+details summary{cursor:pointer;font-weight:600}
+details textarea{width:100%;min-height:110px;margin-top:10px;font-family:ui-monospace,monospace;font-size:.85rem}
+details p{color:var(--muted);font-size:.85rem;margin:8px 0 0}
+@media (max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.row{grid-template-columns:1fr}form.entry{grid-template-columns:1fr 1fr}form.entry button{grid-column:1/-1}}
+@media (prefers-reduced-motion:no-preference){.goal-bar .cur,.goal-bar .fc,.bar .fill{transition:width .4s ease,height .4s ease}}
+
+.login{max-width:380px;margin:12vh auto 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:26px;display:grid;gap:14px}
+.login label{display:grid;gap:4px;font-size:.8rem;color:var(--muted);font-weight:600}
+.login input{width:100%}
+.login p{margin:0;color:var(--muted);font-size:.9rem}
+.err{color:var(--warn)!important}
+.loading{opacity:.5;pointer-events:none}
+[hidden]{display:none!important}
+body{margin:0}
+</style>
+</head>
+<body>
+<section class="login" id="login" hidden>
+  <h1>Umsatzbuch</h1>
+  <p>Bitte anmelden.</p>
+  <form id="loginForm" style="display:grid;gap:12px">
+    <label for="lMail">E-Mail<input id="lMail" type="email" autocomplete="username" required></label>
+    <label for="lPw">Passwort<input id="lPw" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Anmelden</button>
+  </form>
+  <p id="loginMsg" role="status"></p>
+</section>
+<p class="msg" id="cfgMsg" hidden style="text-align:center;margin-top:12vh"></p>
+<div class="wrap" id="app" hidden>
+  <header>
+    <div>
+      <h1>Umsatzbuch</h1>
+      <p>Umsatz und Kunden pro Tag eintragen, Monat auf einen Blick.</p>
+    </div>
+    <div class="controls">
+      <select id="selMonth" aria-label="Monat"></select>
+      <select id="selYear" aria-label="Jahr"></select>
+    </div>
+  </header>
+
+  <div class="note" id="userBar">
+    <span>Angemeldet als <b id="userMail"></b></span>
+    <button type="button" class="link" id="btnLogout">Abmelden</button>
+  </div>
+
+  <section class="kpis" aria-label="Kennzahlen">
+    <div class="kpi"><div class="label">Umsatz im Monat</div><div class="value num" id="kSales">0</div><div class="sub num" id="kSalesCmp"></div></div>
+    <div class="kpi"><div class="label">Kunden im Monat</div><div class="value num" id="kCust">0</div><div class="sub num" id="kCustCmp"></div></div>
+    <div class="kpi"><div class="label">Ø Umsatz pro Kunde</div><div class="value num" id="kBasket">0</div><div class="sub num" id="kBasketCmp"></div></div>
+    <div class="kpi"><div class="label">Ø Umsatz pro Arbeitstag</div><div class="value num" id="kDay">0</div><div class="sub num" id="kDayCnt"></div></div>
+  </section>
+
+  <div class="row">
+    <section class="panel">
+      <div class="panel-head"><h2>Monatsziel</h2><span class="num" id="goalPct" style="color:var(--muted)"></span></div>
+      <div class="goal-bar" aria-hidden="true">
+        <div class="fc" id="gFc"></div><div class="cur" id="gCur"></div><div class="mark" id="gMark"></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--accent)"></i>Bisher <b class="num" id="lCur"></b></span>
+        <span><i style="background:color-mix(in srgb,var(--accent) 35%,var(--accent-soft))"></i>Hochrechnung <b class="num" id="lFc"></b></span>
+        <span><i style="background:var(--gold)"></i>Ziel <b class="num" id="lGoal"></b></span>
+      </div>
+      <div class="goal-set">
+        <label for="inGoal">Ziel für diesen Monat (€)</label>
+        <input id="inGoal" type="number" min="0" step="100" inputmode="decimal">
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Umsatz nach Wochentag</h2></div>
+      <div class="bars" id="bars"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Tag eintragen</h2>
+    <form class="entry" id="form">
+      <label for="fDate">Datum<input id="fDate" type="date" required></label>
+      <label for="fSales">Umsatz (€)<input id="fSales" type="number" min="0" step="0.01" inputmode="decimal" required placeholder="z. B. 640,50"></label>
+      <label for="fCust">Kunden<input id="fCust" type="number" min="0" step="1" inputmode="numeric" required placeholder="z. B. 14"></label>
+      <label for="fNote">Notiz<input id="fNote" type="text" placeholder="optional"></label>
+      <button class="primary" type="submit">Speichern</button>
+    </form>
+    <div class="msg" id="msg" role="status"></div>
+    <details>
+      <summary>Aus Excel einfügen</summary>
+      <p>In Excel die Spalten Datum, Umsatz, Kunden markieren, kopieren und hier einfügen. Vorhandene Tage werden überschrieben.</p>
+      <textarea id="paste" aria-label="Daten aus Excel" placeholder="01.10.2026	705,44	13"></textarea>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <button type="button" id="btnImport">Übernehmen</button><span class="msg" id="impMsg"></span>
+      </div>
+    </details>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Tage im Monat</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Datum</th><th>Tag</th><th class="r">Umsatz</th><th class="r">Kunden</th><th class="r">Ø pro Kunde</th><th>Notiz</th><th></th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+  var MONTHS=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  var WD=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+  var WD_SHORT=['Mo','Di','Mi','Do','Fr','Sa','So'];
+  var eur=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'});
+  var eur0=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+  var int=new Intl.NumberFormat('de-DE');
+  var $=function(id){return document.getElementById(id)};
+  function pad(n){return String(n).padStart(2,'0')}
+  function iso(y,m,d){return y+'-'+pad(m+1)+'-'+pad(d)}
+  function parseIso(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2])}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+  var cfg=window.UMSATZBUCH_CONFIG||{};
+  if(!cfg.supabaseUrl||!cfg.supabaseAnonKey||cfg.supabaseUrl.indexOf('DEIN-PROJEKT')>-1){
+    $('cfgMsg').hidden=false;$('cfgMsg').textContent='Die Seite ist noch nicht mit der Datenbank verbunden. Bitte in config.js die Supabase-URL und den anon-Key eintragen.';return;
+  }
+  var sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
+
+  var state={entries:{},goals:{}};
+  var now=new Date(),selY=now.getFullYear(),selM=now.getMonth();
+  var user=null;
+
+  // Anmeldung
+  $('loginForm').addEventListener('submit',async function(e){
+    e.preventDefault();
+    $('loginMsg').className='';$('loginMsg').textContent='Anmeldung läuft …';
+    var r=await sb.auth.signInWithPassword({email:$('lMail').value.trim(),password:$('lPw').value});
+    if(r.error){$('loginMsg').className='err';$('loginMsg').textContent='Anmeldung fehlgeschlagen. E-Mail oder Passwort stimmt nicht.';return}
+    $('lPw').value='';$('loginMsg').textContent='';
+  });
+  $('btnLogout').addEventListener('click',function(){sb.auth.signOut()});
+
+  sb.auth.onAuthStateChange(function(_ev,session){
+    var u=session?session.user:null;
+    if(u&&user&&u.id===user.id)return;
+    user=u;
+    if(user){$('login').hidden=true;$('app').hidden=false;$('userMail').textContent=user.email;loadAll()}
+    else{$('app').hidden=true;$('login').hidden=false;state={entries:{},goals:{}}}
+  });
+
+  async function loadAll(){
+    $('app').classList.add('loading');
+    var a=await sb.from('umsatz_tage').select('datum,umsatz,kunden,notiz').order('datum');
+    var b=await sb.from('monatsziele').select('monat,ziel');
+    $('app').classList.remove('loading');
+    if(a.error||b.error){flash('Daten konnten nicht geladen werden: '+(a.error||b.error).message);return}
+    state.entries={};a.data.forEach(function(r){state.entries[r.datum]={sales:+r.umsatz,cust:+r.kunden,note:r.notiz||''}});
+    state.goals={};b.data.forEach(function(r){state.goals[r.monat]=+r.ziel});
+    render();
+  }
+  async function saveDay(d,e){
+    var r=await sb.from('umsatz_tage').upsert({user_id:user.id,datum:d,umsatz:e.sales,kunden:e.cust,notiz:e.note||null},{onConflict:'user_id,datum'});
+    return r.error;
+  }
+
+  // Auswahl
+  MONTHS.forEach(function(n,i){var o=document.createElement('option');o.value=i;o.textContent=n;$('selMonth').appendChild(o)});
+  for(var y=now.getFullYear()-3;y<=now.getFullYear()+1;y++){var o=document.createElement('option');o.value=y;o.textContent=y;$('selYear').appendChild(o)}
+  $('selMonth').value=selM;$('selYear').value=selY;
+  $('selMonth').onchange=function(){selM=+this.value;render()};
+  $('selYear').onchange=function(){selY=+this.value;render()};
+  $('fDate').value=iso(now.getFullYear(),now.getMonth(),now.getDate());
+
+  function monthRows(y,m){
+    var pre=y+'-'+pad(m+1)+'-';
+    return Object.keys(state.entries).filter(function(k){return k.indexOf(pre)===0}).sort().map(function(k){
+      var e=state.entries[k];return {date:k,sales:+e.sales||0,cust:+e.cust||0,note:e.note||''};
+    });
+  }
+  function totals(rows){
+    var s=0,c=0;rows.forEach(function(r){s+=r.sales;c+=r.cust});
+    return {sales:s,cust:c,days:rows.length,basket:c?s/c:0,perDay:rows.length?s/rows.length:0};
+  }
+  function cmp(cur,prev,fmt){
+    if(!prev) return 'Vormonat: keine Daten';
+    var p=(cur-prev)/prev*100;
+    return '<span class="'+(p>=0?'up':'down')+'">'+(p>=0?'+':'')+p.toFixed(1).replace('.',',')+' %</span> zum Vormonat ('+fmt(prev)+')';
+  }
+
+  function render(){
+    var rows=monthRows(selY,selM),t=totals(rows);
+    var py=selM===0?selY-1:selY,pm=selM===0?11:selM-1;
+    var isCur=selY===now.getFullYear()&&selM===now.getMonth();
+    var prevRows=monthRows(py,pm);
+    // laufender Monat: Vormonat nur bis zum gleichen Tag vergleichen
+    if(isCur){var lim=now.getDate();prevRows=prevRows.filter(function(r){return +r.date.slice(8)<lim})}
+    var pt=totals(prevRows);
+
+    $('kSales').textContent=eur.format(t.sales);
+    $('kCust').textContent=int.format(t.cust);
+    $('kBasket').textContent=eur.format(t.basket);
+    $('kDay').textContent=eur.format(t.perDay);
+    $('kSalesCmp').innerHTML=cmp(t.sales,pt.sales,function(v){return eur0.format(v)});
+    $('kCustCmp').innerHTML=cmp(t.cust,pt.cust,function(v){return int.format(v)});
+    $('kBasketCmp').innerHTML=cmp(t.basket,pt.basket,function(v){return eur.format(v)});
+    $('kDayCnt').textContent=t.days+(t.days===1?' Tag':' Tage')+' eingetragen';
+
+    // Hochrechnung: Umsatz pro bisherigem Kalendertag mal Tage im Monat
+    var dim=new Date(selY,selM+1,0).getDate();
+    var lastDay=rows.length?+rows[rows.length-1].date.slice(8):0;
+    var elapsed=isCur?Math.max(lastDay,now.getDate()-1):(rows.length?dim:0);
+    var fc=elapsed?t.sales/elapsed*dim:0;
+    if(!isCur&&rows.length) fc=t.sales;
+    var goal=+(state.goals[selY+'-'+pad(selM+1)]||0);
+    $('inGoal').value=goal||'';
+    var scale=Math.max(goal,fc,t.sales)*1.08||1;
+    $('gCur').style.width=(t.sales/scale*100)+'%';
+    $('gFc').style.width=(fc/scale*100)+'%';
+    $('gMark').hidden=!goal;
+    $('gMark').style.left=(goal/scale*100)+'%';
+    $('lCur').textContent=eur0.format(t.sales);
+    $('lFc').textContent=eur0.format(fc);
+    $('lGoal').textContent=goal?eur0.format(goal):'nicht gesetzt';
+    $('goalPct').textContent=goal?(t.sales/goal*100).toFixed(0)+' % erreicht':'';
+
+    var wd=[0,0,0,0,0,0,0];
+    rows.forEach(function(r){var d=parseIso(r.date).getDay();wd[(d+6)%7]+=r.sales});
+    var mx=Math.max.apply(null,wd)||1;
+    $('bars').innerHTML=wd.map(function(v,i){
+      return '<div class="bar"><span class="v num">'+(v?eur0.format(v).replace(/\s?€/,''):'')+'</span><div class="track"><div class="fill" style="height:'+(v/mx*100)+'%"></div></div><span class="d">'+WD_SHORT[i]+'</span></div>';
+    }).join('');
+
+    var tb=$('tbody');
+    if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="empty">Für '+MONTHS[selM]+' '+selY+' ist noch nichts eingetragen. Oben einfach den ersten Tag speichern.</td></tr>';}
+    else{
+      tb.innerHTML=rows.map(function(r){
+        var d=parseIso(r.date);
+        return '<tr><td class="num">'+pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear()+'</td><td>'+WD[d.getDay()]+'</td><td class="r num">'+eur.format(r.sales)+'</td><td class="r num">'+r.cust+'</td><td class="r num">'+(r.cust?eur.format(r.sales/r.cust):'-')+'</td><td>'+esc(r.note)+'</td><td class="r"><button type="button" class="link" data-edit="'+r.date+'">Ändern</button><button type="button" class="link" data-del="'+r.date+'">Löschen</button></td></tr>';
+      }).join('')+'<tr class="sum"><td colspan="2">Summe '+MONTHS[selM]+'</td><td class="r num">'+eur.format(t.sales)+'</td><td class="r num">'+int.format(t.cust)+'</td><td class="r num">'+eur.format(t.basket)+'</td><td colspan="2"></td></tr>';
+    }
+  }
+
+  function flash(t,el){el=el||$('msg');el.textContent=t;clearTimeout(el._t);el._t=setTimeout(function(){el.textContent=''},4000)}
+
+  var pendingDel=null;
+  $('tbody').addEventListener('click',async function(e){
+    var b=e.target.closest('button');if(!b)return;
+    if(b.dataset.edit){var r=state.entries[b.dataset.edit];$('fDate').value=b.dataset.edit;$('fSales').value=r.sales;$('fCust').value=r.cust;$('fNote').value=r.note||'';$('fSales').focus();window.scrollTo({top:$('form').offsetTop-80,behavior:'smooth'})}
+    if(b.dataset.del){
+      if(pendingDel===b.dataset.del){
+        var d=b.dataset.del;pendingDel=null;
+        var r2=await sb.from('umsatz_tage').delete().eq('user_id',user.id).eq('datum',d);
+        if(r2.error){flash('Löschen fehlgeschlagen: '+r2.error.message);return}
+        delete state.entries[d];render();flash('Tag gelöscht.');
+      } else {pendingDel=b.dataset.del;b.textContent='Wirklich löschen?';b.style.color='var(--warn)'}
+    }
+  });
+
+  $('form').addEventListener('submit',async function(e){
+    e.preventDefault();
+    var d=$('fDate').value,s=parseFloat(String($('fSales').value).replace(',','.')),c=parseInt($('fCust').value,10);
+    if(!d||isNaN(s)||isNaN(c)){flash('Bitte Datum, Umsatz und Kunden ausfüllen.');return}
+    var existed=!!state.entries[d];
+    var entry={sales:Math.round(s*100)/100,cust:c,note:$('fNote').value.trim()};
+    var err=await saveDay(d,entry);
+    if(err){flash('Speichern fehlgeschlagen: '+err.message);return}
+    state.entries[d]=entry;
+    var dd=parseIso(d);selY=dd.getFullYear();selM=dd.getMonth();$('selMonth').value=selM;$('selYear').value=selY;
+    render();
+    flash((existed?'Geändert: ':'Gespeichert: ')+pad(dd.getDate())+'.'+pad(dd.getMonth()+1)+'. mit '+eur.format(s)+' und '+c+' Kunden.');
+    $('fSales').value='';$('fCust').value='';$('fNote').value='';
+  });
+
+  $('inGoal').addEventListener('change',async function(){
+    var v=parseFloat(this.value);v=isNaN(v)?0:v;var k=selY+'-'+pad(selM+1);
+    var r=await sb.from('monatsziele').upsert({user_id:user.id,monat:k,ziel:v},{onConflict:'user_id,monat'});
+    if(r.error){flash('Ziel konnte nicht gespeichert werden: '+r.error.message);return}
+    state.goals[k]=v;render();
+  });
+
+  // Einfügen aus Excel: Datum, Umsatz, Kunden
+  function num(s){s=String(s||'').replace(/[€\s]/g,'');if(s.indexOf(',')>-1)s=s.replace(/\./g,'').replace(',','.');return parseFloat(s)}
+  function toIso(s){
+    s=String(s||'').trim();var m=s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+    if(m){var y=+m[3];if(y<100)y+=2000;return iso(y,+m[2]-1,+m[1])}
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;return null;
+  }
+  $('btnImport').addEventListener('click',async function(){
+    var lines=$('paste').value.split(/\r?\n/),rows=[],bad=0;
+    lines.forEach(function(l){
+      if(!l.trim())return;var p=l.split(/\t|;/);var d=toIso(p[0]),s=num(p[1]),c=parseInt(p[2],10);
+      if(d&&!isNaN(s)&&!isNaN(c)){var old=state.entries[d];rows.push({user_id:user.id,datum:d,umsatz:Math.round(s*100)/100,kunden:c,notiz:old&&old.note?old.note:null})}else bad++;
+    });
+    if(!rows.length){flash('Keine Zeile erkannt. Erwartet: Datum, Umsatz, Kunden.',$('impMsg'));return}
+    var r=await sb.from('umsatz_tage').upsert(rows,{onConflict:'user_id,datum'});
+    if(r.error){flash('Übernehmen fehlgeschlagen: '+r.error.message,$('impMsg'));return}
+    rows.forEach(function(x){state.entries[x.datum]={sales:x.umsatz,cust:x.kunden,note:x.notiz||''}});
+    render();$('paste').value='';
+    flash(rows.length+' Tage übernommen'+(bad?', '+bad+' Zeilen nicht erkannt (z. B. Überschriften)':'')+'.',$('impMsg'));
+  });
+})();
+</script>
+</body>
+</html>
