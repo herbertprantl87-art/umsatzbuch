@@ -319,12 +319,36 @@ Amazon Gesamt: 25€
   $('btnLogout').addEventListener('click',logout);
   $('uLogout').addEventListener('click',logout);
 
+  // Automatisch abmelden nach 15 Minuten ohne Nutzung (auch wenn das Handy die Seite im Hintergrund pausiert)
+  var IDLE_MS=15*60*1000;
+  function touch(){try{sessionStorage.setItem('ub-aktiv',String(Date.now()))}catch(e){}}
+  function lastActive(){try{return +sessionStorage.getItem('ub-aktiv')||0}catch(e){return 0}}
+  async function idleCheck(){
+    var t=lastActive();
+    if(user&&t&&Date.now()-t>IDLE_MS){
+      try{sessionStorage.removeItem('ub-aktiv')}catch(e){}
+      KEY=null;await sb.auth.signOut();
+      $('loginMsg').className='';$('loginMsg').textContent='Aus Sicherheitsgründen nach 15 Minuten ohne Nutzung abgemeldet.';
+    }
+  }
+  ['pointerdown','keydown','touchstart','scroll'].forEach(function(ev){window.addEventListener(ev,function(){if(user)touch()},{passive:true})});
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')idleCheck()});
+  window.addEventListener('pageshow',idleCheck);
+  window.addEventListener('focus',idleCheck);
+  setInterval(idleCheck,30000);
+
   sb.auth.onAuthStateChange(function(_ev,session){
     var u=session?session.user:null;
     if(u&&user&&u.id===user.id)return;
+    // Tab war zu lange unbenutzt (z. B. Handy im Hintergrund): direkt abmelden statt öffnen
+    if(u&&lastActive()&&Date.now()-lastActive()>IDLE_MS){
+      try{sessionStorage.removeItem('ub-aktiv')}catch(e){}
+      $('loginMsg').textContent='Aus Sicherheitsgründen nach 15 Minuten ohne Nutzung abgemeldet.';
+      sb.auth.signOut();return;
+    }
     user=u;
-    if(user){$('login').hidden=true;afterLogin()}
-    else{KEY=null;tresor=null;$('app').hidden=true;$('unlock').hidden=true;$('login').hidden=false;state={pay:[],goals:{}};goalIds={}}
+    if(user){touch();$('login').hidden=true;afterLogin()}
+    else{try{sessionStorage.removeItem('ub-aktiv')}catch(e){}KEY=null;tresor=null;$('app').hidden=true;$('unlock').hidden=true;$('login').hidden=false;state={pay:[],goals:{}};goalIds={}}
   });
 
   async function afterLogin(){
