@@ -62,9 +62,10 @@ button.link:hover{color:var(--accent)}
 .bar .track{display:flex;align-items:flex-end;justify-content:center}
 .bar .fill{width:70%;max-width:34px;border-radius:5px 5px 2px 2px;background:var(--accent);min-height:2px}
 .bar .v{color:var(--muted)} .bar .d{font-weight:600}
-form.entry{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:10px;align-items:end}
+form.entry{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:10px;align-items:end}
 form.entry label{display:grid;gap:4px;font-size:.8rem;color:var(--muted);font-weight:600;min-width:0}
-form.entry input{width:100%}
+form.entry input,form.entry select{width:100%}
+.form-btns{display:flex;gap:8px}
 .msg{font-size:.85rem;color:var(--accent);min-height:1.2em}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:.92rem}
@@ -76,7 +77,7 @@ tr.sum td{font-weight:700;border-bottom:0;background:var(--accent-soft)}
 details summary{cursor:pointer;font-weight:600}
 details textarea{width:100%;min-height:110px;margin-top:10px;font-family:ui-monospace,monospace;font-size:.85rem}
 details p{color:var(--muted);font-size:.85rem;margin:8px 0 0}
-@media (max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.row{grid-template-columns:1fr}form.entry{grid-template-columns:1fr 1fr}form.entry button{grid-column:1/-1}}
+@media (max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.row{grid-template-columns:1fr}form.entry{grid-template-columns:1fr 1fr}.form-btns{grid-column:1/-1}.form-btns button{flex:1}}
 @media (prefers-reduced-motion:no-preference){.goal-bar .cur,.goal-bar .fc,.bar .fill{transition:width .4s ease,height .4s ease}}
 
 .login{max-width:380px;margin:12vh auto 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:26px;display:grid;gap:14px}
@@ -86,6 +87,15 @@ details p{color:var(--muted);font-size:.85rem;margin:8px 0 0}
 .err{color:var(--warn)!important}
 .loading{opacity:.5;pointer-events:none}
 [hidden]{display:none!important}
+.methods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.method{border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:6px}
+.m-head{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.m-share{color:var(--muted);font-weight:500}
+.m-value{font-family:var(--f-display);font-size:1.3rem;font-weight:600}
+.m-bar{height:8px;border-radius:4px;background:var(--accent-soft);overflow:hidden}
+.m-bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.m-sub{font-size:.82rem;color:var(--muted)}
+@media (max-width:700px){.methods{grid-template-columns:1fr}}
 body{margin:0}
 </style>
 </head>
@@ -105,7 +115,7 @@ body{margin:0}
   <header>
     <div>
       <h1>Umsatzbuch</h1>
-      <p>Umsatz und Kunden pro Tag eintragen, Monat auf einen Blick.</p>
+      <p>Zahlungen eintragen, Monat auf einen Blick.</p>
     </div>
     <div class="controls">
       <select id="selMonth" aria-label="Monat"></select>
@@ -123,6 +133,11 @@ body{margin:0}
     <div class="kpi"><div class="label">Kunden im Monat</div><div class="value num" id="kCust">0</div><div class="sub num" id="kCustCmp"></div></div>
     <div class="kpi"><div class="label">Ø Umsatz pro Kunde</div><div class="value num" id="kBasket">0</div><div class="sub num" id="kBasketCmp"></div></div>
     <div class="kpi"><div class="label">Ø Umsatz pro Arbeitstag</div><div class="value num" id="kDay">0</div><div class="sub num" id="kDayCnt"></div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Umsatz je Zahlungsart</h2></div>
+    <div class="methods" id="methods"></div>
   </section>
 
   <div class="row">
@@ -148,19 +163,20 @@ body{margin:0}
   </div>
 
   <section class="panel">
-    <h2>Tag eintragen</h2>
+    <h2>Zahlung eintragen</h2>
     <form class="entry" id="form">
       <label for="fDate">Datum<input id="fDate" type="date" required></label>
-      <label for="fSales">Umsatz (€)<input id="fSales" type="number" min="0" step="0.01" inputmode="decimal" required placeholder="z. B. 640,50"></label>
-      <label for="fCust">Kunden<input id="fCust" type="number" min="0" step="1" inputmode="numeric" required placeholder="z. B. 14"></label>
+      <label for="fMethod">Zahlungsart<select id="fMethod" required></select></label>
+      <label for="fSales">Betrag (€)<input id="fSales" type="number" min="0" step="0.01" inputmode="decimal" required placeholder="z. B. 50,00"></label>
+      <label for="fCust">Kunden<input id="fCust" type="number" min="0" step="1" inputmode="numeric" required></label>
       <label for="fNote">Notiz<input id="fNote" type="text" placeholder="optional"></label>
-      <button class="primary" type="submit">Speichern</button>
+      <div class="form-btns"><button class="primary" type="submit" id="btnSave">Speichern</button><button type="button" id="btnCancel" hidden>Abbrechen</button></div>
     </form>
     <div class="msg" id="msg" role="status"></div>
     <details>
       <summary>Aus Excel einfügen</summary>
-      <p>In Excel die Spalten Datum, Umsatz, Kunden markieren, kopieren und hier einfügen. Vorhandene Tage werden überschrieben.</p>
-      <textarea id="paste" aria-label="Daten aus Excel" placeholder="01.10.2026	705,44	13"></textarea>
+      <p>In Excel die Spalten Datum, Zahlungsart, Betrag und Kunden markieren, kopieren und hier einfügen. Fehlt die Kundenzahl, zählt jede Zahlung als ein Kunde. Jede Zeile wird als neue Zahlung angelegt, also dieselben Zeilen nicht zweimal einfügen.</p>
+      <textarea id="paste" aria-label="Daten aus Excel" placeholder="01.10.2026	Paysafe	50,00	1"></textarea>
       <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
         <button type="button" id="btnImport">Übernehmen</button><span class="msg" id="impMsg"></span>
       </div>
@@ -168,10 +184,10 @@ body{margin:0}
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>Tage im Monat</h2></div>
+    <div class="panel-head"><h2>Zahlungen im Monat</h2></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Datum</th><th>Tag</th><th class="r">Umsatz</th><th class="r">Kunden</th><th class="r">Ø pro Kunde</th><th>Notiz</th><th></th></tr></thead>
+        <thead><tr><th>Datum</th><th>Tag</th><th>Zahlungsart</th><th class="r">Betrag</th><th class="r">Kunden</th><th>Notiz</th><th></th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
@@ -185,6 +201,7 @@ body{margin:0}
   var MONTHS=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
   var WD=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
   var WD_SHORT=['Mo','Di','Mi','Do','Fr','Sa','So'];
+  var METHODS=['Amazon Gutschein','Paysafe','Überweisung'];
   var eur=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'});
   var eur0=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
   var int=new Intl.NumberFormat('de-DE');
@@ -192,17 +209,18 @@ body{margin:0}
   function pad(n){return String(n).padStart(2,'0')}
   function iso(y,m,d){return y+'-'+pad(m+1)+'-'+pad(d)}
   function parseIso(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2])}
+  function fmtDate(s){var d=parseIso(s);return pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear()}
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 
   var cfg=window.UMSATZBUCH_CONFIG||{};
   if(!cfg.supabaseUrl||!cfg.supabaseAnonKey||cfg.supabaseUrl.indexOf('DEIN-PROJEKT')>-1){
-    $('cfgMsg').hidden=false;$('cfgMsg').textContent='Die Seite ist noch nicht mit der Datenbank verbunden. Bitte in config.js die Supabase-URL und den anon-Key eintragen.';return;
+    $('cfgMsg').hidden=false;$('cfgMsg').textContent='Die Seite ist noch nicht mit der Datenbank verbunden. Bitte in config.js die Supabase-URL und den Key eintragen.';return;
   }
   var sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
 
-  var state={entries:{},goals:{}};
+  var state={pay:[],goals:{}};
   var now=new Date(),selY=now.getFullYear(),selM=now.getMonth();
-  var user=null;
+  var user=null,editId=null;
 
   // Anmeldung
   $('loginForm').addEventListener('submit',async function(e){
@@ -219,41 +237,44 @@ body{margin:0}
     if(u&&user&&u.id===user.id)return;
     user=u;
     if(user){$('login').hidden=true;$('app').hidden=false;$('userMail').textContent=user.email;loadAll()}
-    else{$('app').hidden=true;$('login').hidden=false;state={entries:{},goals:{}}}
+    else{$('app').hidden=true;$('login').hidden=false;state={pay:[],goals:{}}}
   });
+
+  function toRow(r){return {id:r.id,date:r.datum,method:r.zahlungsart,amount:+r.betrag,cust:+r.kunden,note:r.notiz||''}}
 
   async function loadAll(){
     $('app').classList.add('loading');
-    var a=await sb.from('umsatz_tage').select('datum,umsatz,kunden,notiz').order('datum');
+    var a=await sb.from('zahlungen').select('id,datum,zahlungsart,betrag,kunden,notiz').order('datum').order('id');
     var b=await sb.from('monatsziele').select('monat,ziel');
     $('app').classList.remove('loading');
     if(a.error||b.error){flash('Daten konnten nicht geladen werden: '+(a.error||b.error).message);return}
-    state.entries={};a.data.forEach(function(r){state.entries[r.datum]={sales:+r.umsatz,cust:+r.kunden,note:r.notiz||''}});
+    state.pay=a.data.map(toRow);
     state.goals={};b.data.forEach(function(r){state.goals[r.monat]=+r.ziel});
     render();
-  }
-  async function saveDay(d,e){
-    var r=await sb.from('umsatz_tage').upsert({user_id:user.id,datum:d,umsatz:e.sales,kunden:e.cust,notiz:e.note||null},{onConflict:'user_id,datum'});
-    return r.error;
   }
 
   // Auswahl
   MONTHS.forEach(function(n,i){var o=document.createElement('option');o.value=i;o.textContent=n;$('selMonth').appendChild(o)});
   for(var y=now.getFullYear()-3;y<=now.getFullYear()+1;y++){var o=document.createElement('option');o.value=y;o.textContent=y;$('selYear').appendChild(o)}
+  METHODS.forEach(function(m){var o=document.createElement('option');o.value=m;o.textContent=m;$('fMethod').appendChild(o)});
   $('selMonth').value=selM;$('selYear').value=selY;
   $('selMonth').onchange=function(){selM=+this.value;render()};
   $('selYear').onchange=function(){selY=+this.value;render()};
+  function resetForm(){
+    editId=null;$('fSales').value='';$('fCust').value='1';$('fNote').value='';
+    $('btnSave').textContent='Speichern';$('btnCancel').hidden=true;
+  }
   $('fDate').value=iso(now.getFullYear(),now.getMonth(),now.getDate());
+  resetForm();
 
   function monthRows(y,m){
     var pre=y+'-'+pad(m+1)+'-';
-    return Object.keys(state.entries).filter(function(k){return k.indexOf(pre)===0}).sort().map(function(k){
-      var e=state.entries[k];return {date:k,sales:+e.sales||0,cust:+e.cust||0,note:e.note||''};
-    });
+    return state.pay.filter(function(r){return r.date.indexOf(pre)===0}).sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.id-b.id});
   }
   function totals(rows){
-    var s=0,c=0;rows.forEach(function(r){s+=r.sales;c+=r.cust});
-    return {sales:s,cust:c,days:rows.length,basket:c?s/c:0,perDay:rows.length?s/rows.length:0};
+    var s=0,c=0,days={};rows.forEach(function(r){s+=r.amount;c+=r.cust;days[r.date]=1});
+    var n=Object.keys(days).length;
+    return {sales:s,cust:c,days:n,basket:c?s/c:0,perDay:n?s/n:0};
   }
   function cmp(cur,prev,fmt){
     if(!prev) return 'Vormonat: keine Daten';
@@ -277,7 +298,17 @@ body{margin:0}
     $('kSalesCmp').innerHTML=cmp(t.sales,pt.sales,function(v){return eur0.format(v)});
     $('kCustCmp').innerHTML=cmp(t.cust,pt.cust,function(v){return int.format(v)});
     $('kBasketCmp').innerHTML=cmp(t.basket,pt.basket,function(v){return eur.format(v)});
-    $('kDayCnt').textContent=t.days+(t.days===1?' Tag':' Tage')+' eingetragen';
+    $('kDayCnt').textContent=t.days+(t.days===1?' Tag':' Tage')+' mit Umsatz';
+
+    // Umsatz je Zahlungsart
+    $('methods').innerHTML=METHODS.map(function(m){
+      var s=0,n=0,c=0;rows.forEach(function(r){if(r.method===m){s+=r.amount;n++;c+=r.cust}});
+      var share=t.sales?s/t.sales*100:0;
+      return '<div class="method"><div class="m-head"><span class="m-name">'+m+'</span><span class="m-share num">'+share.toFixed(0)+' %</span></div>'+
+        '<div class="m-value num">'+eur.format(s)+'</div>'+
+        '<div class="m-bar"><i style="width:'+share+'%"></i></div>'+
+        '<div class="m-sub num">'+n+(n===1?' Zahlung':' Zahlungen')+' · '+c+' Kunden</div></div>';
+    }).join('');
 
     // Hochrechnung: Umsatz pro bisherigem Kalendertag mal Tage im Monat
     var dim=new Date(selY,selM+1,0).getDate();
@@ -298,51 +329,62 @@ body{margin:0}
     $('goalPct').textContent=goal?(t.sales/goal*100).toFixed(0)+' % erreicht':'';
 
     var wd=[0,0,0,0,0,0,0];
-    rows.forEach(function(r){var d=parseIso(r.date).getDay();wd[(d+6)%7]+=r.sales});
+    rows.forEach(function(r){var d=parseIso(r.date).getDay();wd[(d+6)%7]+=r.amount});
     var mx=Math.max.apply(null,wd)||1;
     $('bars').innerHTML=wd.map(function(v,i){
       return '<div class="bar"><span class="v num">'+(v?eur0.format(v).replace(/\s?€/,''):'')+'</span><div class="track"><div class="fill" style="height:'+(v/mx*100)+'%"></div></div><span class="d">'+WD_SHORT[i]+'</span></div>';
     }).join('');
 
     var tb=$('tbody');
-    if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="empty">Für '+MONTHS[selM]+' '+selY+' ist noch nichts eingetragen. Oben einfach den ersten Tag speichern.</td></tr>';}
+    if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="empty">Für '+MONTHS[selM]+' '+selY+' ist noch nichts eingetragen. Oben einfach die erste Zahlung speichern.</td></tr>';}
     else{
       tb.innerHTML=rows.map(function(r){
         var d=parseIso(r.date);
-        return '<tr><td class="num">'+pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear()+'</td><td>'+WD[d.getDay()]+'</td><td class="r num">'+eur.format(r.sales)+'</td><td class="r num">'+r.cust+'</td><td class="r num">'+(r.cust?eur.format(r.sales/r.cust):'-')+'</td><td>'+esc(r.note)+'</td><td class="r"><button type="button" class="link" data-edit="'+r.date+'">Ändern</button><button type="button" class="link" data-del="'+r.date+'">Löschen</button></td></tr>';
-      }).join('')+'<tr class="sum"><td colspan="2">Summe '+MONTHS[selM]+'</td><td class="r num">'+eur.format(t.sales)+'</td><td class="r num">'+int.format(t.cust)+'</td><td class="r num">'+eur.format(t.basket)+'</td><td colspan="2"></td></tr>';
+        return '<tr><td class="num">'+fmtDate(r.date)+'</td><td>'+WD[d.getDay()]+'</td><td>'+esc(r.method)+'</td><td class="r num">'+eur.format(r.amount)+'</td><td class="r num">'+r.cust+'</td><td>'+esc(r.note)+'</td><td class="r"><button type="button" class="link" data-edit="'+r.id+'">Ändern</button><button type="button" class="link" data-del="'+r.id+'">Löschen</button></td></tr>';
+      }).join('')+'<tr class="sum"><td colspan="3">Summe '+MONTHS[selM]+'</td><td class="r num">'+eur.format(t.sales)+'</td><td class="r num">'+int.format(t.cust)+'</td><td colspan="2"></td></tr>';
     }
   }
 
   function flash(t,el){el=el||$('msg');el.textContent=t;clearTimeout(el._t);el._t=setTimeout(function(){el.textContent=''},4000)}
+  function byId(id){for(var i=0;i<state.pay.length;i++)if(state.pay[i].id===id)return state.pay[i];return null}
 
   var pendingDel=null;
   $('tbody').addEventListener('click',async function(e){
     var b=e.target.closest('button');if(!b)return;
-    if(b.dataset.edit){var r=state.entries[b.dataset.edit];$('fDate').value=b.dataset.edit;$('fSales').value=r.sales;$('fCust').value=r.cust;$('fNote').value=r.note||'';$('fSales').focus();window.scrollTo({top:$('form').offsetTop-80,behavior:'smooth'})}
+    if(b.dataset.edit){
+      var r=byId(+b.dataset.edit);if(!r)return;
+      editId=r.id;$('fDate').value=r.date;$('fMethod').value=r.method;$('fSales').value=r.amount;$('fCust').value=r.cust;$('fNote').value=r.note;
+      $('btnSave').textContent='Änderung speichern';$('btnCancel').hidden=false;
+      $('fSales').focus();window.scrollTo({top:$('form').offsetTop-80,behavior:'smooth'});
+    }
     if(b.dataset.del){
-      if(pendingDel===b.dataset.del){
-        var d=b.dataset.del;pendingDel=null;
-        var r2=await sb.from('umsatz_tage').delete().eq('user_id',user.id).eq('datum',d);
+      var id=+b.dataset.del;
+      if(pendingDel===id){
+        pendingDel=null;
+        var r2=await sb.from('zahlungen').delete().eq('user_id',user.id).eq('id',id);
         if(r2.error){flash('Löschen fehlgeschlagen: '+r2.error.message);return}
-        delete state.entries[d];render();flash('Tag gelöscht.');
-      } else {pendingDel=b.dataset.del;b.textContent='Wirklich löschen?';b.style.color='var(--warn)'}
+        state.pay=state.pay.filter(function(x){return x.id!==id});
+        if(editId===id)resetForm();
+        render();flash('Zahlung gelöscht.');
+      } else {pendingDel=id;b.textContent='Wirklich löschen?';b.style.color='var(--warn)'}
     }
   });
+  $('btnCancel').addEventListener('click',resetForm);
 
   $('form').addEventListener('submit',async function(e){
     e.preventDefault();
-    var d=$('fDate').value,s=parseFloat(String($('fSales').value).replace(',','.')),c=parseInt($('fCust').value,10);
-    if(!d||isNaN(s)||isNaN(c)){flash('Bitte Datum, Umsatz und Kunden ausfüllen.');return}
-    var existed=!!state.entries[d];
-    var entry={sales:Math.round(s*100)/100,cust:c,note:$('fNote').value.trim()};
-    var err=await saveDay(d,entry);
-    if(err){flash('Speichern fehlgeschlagen: '+err.message);return}
-    state.entries[d]=entry;
+    var d=$('fDate').value,m=$('fMethod').value,s=parseFloat(String($('fSales').value).replace(',','.')),c=parseInt($('fCust').value,10);
+    if(!d||METHODS.indexOf(m)<0||isNaN(s)||isNaN(c)){flash('Bitte Datum, Zahlungsart, Betrag und Kunden ausfüllen.');return}
+    var rec={user_id:user.id,datum:d,zahlungsart:m,betrag:Math.round(s*100)/100,kunden:c,notiz:$('fNote').value.trim()||null};
+    var r=editId
+      ? await sb.from('zahlungen').update(rec).eq('user_id',user.id).eq('id',editId).select().single()
+      : await sb.from('zahlungen').insert(rec).select().single();
+    if(r.error){flash('Speichern fehlgeschlagen: '+r.error.message);return}
+    var row=toRow(r.data),was=editId;
+    if(was)state.pay=state.pay.map(function(x){return x.id===was?row:x});else state.pay.push(row);
     var dd=parseIso(d);selY=dd.getFullYear();selM=dd.getMonth();$('selMonth').value=selM;$('selYear').value=selY;
-    render();
-    flash((existed?'Geändert: ':'Gespeichert: ')+pad(dd.getDate())+'.'+pad(dd.getMonth()+1)+'. mit '+eur.format(s)+' und '+c+' Kunden.');
-    $('fSales').value='';$('fCust').value='';$('fNote').value='';
+    resetForm();render();
+    flash((was?'Geändert: ':'Gespeichert: ')+fmtDate(d)+', '+m+', '+eur.format(s)+'.');
   });
 
   $('inGoal').addEventListener('change',async function(){
@@ -352,25 +394,33 @@ body{margin:0}
     state.goals[k]=v;render();
   });
 
-  // Einfügen aus Excel: Datum, Umsatz, Kunden
+  // Einfügen aus Excel: Datum, Zahlungsart, Betrag, Kunden (optional)
   function num(s){s=String(s||'').replace(/[€\s]/g,'');if(s.indexOf(',')>-1)s=s.replace(/\./g,'').replace(',','.');return parseFloat(s)}
   function toIso(s){
     s=String(s||'').trim();var m=s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
     if(m){var y=+m[3];if(y<100)y+=2000;return iso(y,+m[2]-1,+m[1])}
     if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;return null;
   }
+  function toMethod(s){
+    s=String(s||'').toLowerCase();
+    if(s.indexOf('amazon')>-1)return METHODS[0];
+    if(s.indexOf('paysafe')>-1)return METHODS[1];
+    if(s.indexOf('überw')>-1||s.indexOf('ueberw')>-1||s.indexOf('uberw')>-1)return METHODS[2];
+    return null;
+  }
   $('btnImport').addEventListener('click',async function(){
     var lines=$('paste').value.split(/\r?\n/),rows=[],bad=0;
     lines.forEach(function(l){
-      if(!l.trim())return;var p=l.split(/\t|;/);var d=toIso(p[0]),s=num(p[1]),c=parseInt(p[2],10);
-      if(d&&!isNaN(s)&&!isNaN(c)){var old=state.entries[d];rows.push({user_id:user.id,datum:d,umsatz:Math.round(s*100)/100,kunden:c,notiz:old&&old.note?old.note:null})}else bad++;
+      if(!l.trim())return;var p=l.split(/\t|;/);
+      var d=toIso(p[0]),m=toMethod(p[1]),s=num(p[2]),c=p[3]===undefined||String(p[3]).trim()===''?1:parseInt(p[3],10);
+      if(d&&m&&!isNaN(s)&&!isNaN(c))rows.push({user_id:user.id,datum:d,zahlungsart:m,betrag:Math.round(s*100)/100,kunden:c});else bad++;
     });
-    if(!rows.length){flash('Keine Zeile erkannt. Erwartet: Datum, Umsatz, Kunden.',$('impMsg'));return}
-    var r=await sb.from('umsatz_tage').upsert(rows,{onConflict:'user_id,datum'});
+    if(!rows.length){flash('Keine Zeile erkannt. Erwartet: Datum, Zahlungsart, Betrag, Kunden.',$('impMsg'));return}
+    var r=await sb.from('zahlungen').insert(rows).select();
     if(r.error){flash('Übernehmen fehlgeschlagen: '+r.error.message,$('impMsg'));return}
-    rows.forEach(function(x){state.entries[x.datum]={sales:x.umsatz,cust:x.kunden,note:x.notiz||''}});
+    r.data.forEach(function(x){state.pay.push(toRow(x))});
     render();$('paste').value='';
-    flash(rows.length+' Tage übernommen'+(bad?', '+bad+' Zeilen nicht erkannt (z. B. Überschriften)':'')+'.',$('impMsg'));
+    flash(rows.length+' Zahlungen übernommen'+(bad?', '+bad+' Zeilen nicht erkannt (z. B. Überschriften)':'')+'.',$('impMsg'));
   });
 })();
 </script>
