@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Umsatzbuch</title>
+<meta name="theme-color" content="#0f6e66">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Umsatzbuch">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600&display=swap">
 <style>
@@ -75,9 +82,9 @@ td.r,th.r{text-align:right}
 tr.sum td{font-weight:700;border-bottom:0;background:var(--accent-soft)}
 .empty{color:var(--muted);text-align:center;padding:24px}
 details summary{cursor:pointer;font-weight:600}
-details textarea{width:100%;min-height:110px;margin-top:10px;font-family:ui-monospace,monospace;font-size:.85rem}
+details textarea{width:100%;min-height:110px;margin-top:10px;font-family:ui-monospace,monospace;font-size:16px}
 details p{color:var(--muted);font-size:.85rem;margin:8px 0 0}
-@media (max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.row{grid-template-columns:1fr}form.entry{grid-template-columns:1fr 1fr}.form-btns{grid-column:1/-1}.form-btns button{flex:1}}
+@media (max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.row{grid-template-columns:1fr}form.entry{grid-template-columns:1fr 1fr}.form-btns{grid-column:1/-1}label[for="fMethod"],label[for="fNote"]{grid-column:1/-1}.form-btns button{flex:1}}
 @media (prefers-reduced-motion:no-preference){.goal-bar .cur,.goal-bar .fc,.bar .fill{transition:width .4s ease,height .4s ease}}
 
 .login{max-width:380px;margin:12vh auto 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:26px;display:grid;gap:14px}
@@ -87,6 +94,27 @@ details p{color:var(--muted);font-size:.85rem;margin:8px 0 0}
 .err{color:var(--warn)!important}
 .loading{opacity:.5;pointer-events:none}
 [hidden]{display:none!important}
+select,input,textarea{font-size:16px}
+button.link{min-height:36px}
+@media (max-width:640px){
+  .table-wrap{overflow:visible}
+  table thead{display:none}
+  table,tbody{display:block}
+  tbody tr{display:grid;grid-template-columns:1fr auto;grid-template-areas:"date amount" "method cust" "note note" "act act";column-gap:12px;row-gap:2px;padding:12px 2px;border-bottom:1px solid var(--line)}
+  tbody td{display:block;border:0;padding:0;white-space:normal}
+  td.c-date{grid-area:date;font-weight:600}
+  td.c-day{display:none}
+  td.c-amount{grid-area:amount;font-weight:700;font-family:var(--f-display)}
+  td.c-method{grid-area:method;color:var(--muted)}
+  td.c-cust{grid-area:cust;color:var(--muted);font-size:.85rem;align-self:center}
+  td.c-note{grid-area:note;font-size:.85rem;color:var(--muted)}
+  td.c-note:empty{display:none}
+  td.c-act{grid-area:act;text-align:left;margin-left:-6px}
+  td.c-act:empty{display:none}
+  tr.sum{background:var(--accent-soft);border-radius:8px;padding:12px;grid-template-areas:"date amount" "cust cust"}
+  tr.sum td{background:none}
+  td.empty{grid-column:1/-1}
+}
 .methods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .method{border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:6px}
 .m-head{display:flex;justify-content:space-between;gap:8px;font-weight:600}
@@ -128,6 +156,27 @@ body{margin:0}
     <button type="button" class="link" id="btnLogout">Abmelden</button>
   </div>
 
+  <section class="panel">
+    <h2>Zahlung eintragen</h2>
+    <form class="entry" id="form">
+      <label for="fDate">Datum<input id="fDate" type="date" required></label>
+      <label for="fMethod">Zahlungsart<select id="fMethod" required></select></label>
+      <label for="fSales">Betrag (€)<input id="fSales" type="number" min="0" step="0.01" inputmode="decimal" required placeholder="z. B. 50,00"></label>
+      <label for="fCust">Kunden<input id="fCust" type="number" min="0" step="1" inputmode="numeric" required></label>
+      <label for="fNote">Notiz<input id="fNote" type="text" placeholder="optional"></label>
+      <div class="form-btns"><button class="primary" type="submit" id="btnSave">Speichern</button><button type="button" id="btnCancel" hidden>Abbrechen</button></div>
+    </form>
+    <div class="msg" id="msg" role="status"></div>
+    <details>
+      <summary>Aus Excel einfügen</summary>
+      <p>In Excel die Spalten Datum, Zahlungsart, Betrag und Kunden markieren, kopieren und hier einfügen. Fehlt die Kundenzahl, zählt jede Zahlung als ein Kunde. Jede Zeile wird als neue Zahlung angelegt, also dieselben Zeilen nicht zweimal einfügen.</p>
+      <textarea id="paste" aria-label="Daten aus Excel" placeholder="01.10.2026	Paysafe	50,00	1"></textarea>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <button type="button" id="btnImport">Übernehmen</button><span class="msg" id="impMsg"></span>
+      </div>
+    </details>
+  </section>
+
   <section class="kpis" aria-label="Kennzahlen">
     <div class="kpi"><div class="label">Umsatz im Monat</div><div class="value num" id="kSales">0</div><div class="sub num" id="kSalesCmp"></div></div>
     <div class="kpi"><div class="label">Kunden im Monat</div><div class="value num" id="kCust">0</div><div class="sub num" id="kCustCmp"></div></div>
@@ -162,26 +211,6 @@ body{margin:0}
     </section>
   </div>
 
-  <section class="panel">
-    <h2>Zahlung eintragen</h2>
-    <form class="entry" id="form">
-      <label for="fDate">Datum<input id="fDate" type="date" required></label>
-      <label for="fMethod">Zahlungsart<select id="fMethod" required></select></label>
-      <label for="fSales">Betrag (€)<input id="fSales" type="number" min="0" step="0.01" inputmode="decimal" required placeholder="z. B. 50,00"></label>
-      <label for="fCust">Kunden<input id="fCust" type="number" min="0" step="1" inputmode="numeric" required></label>
-      <label for="fNote">Notiz<input id="fNote" type="text" placeholder="optional"></label>
-      <div class="form-btns"><button class="primary" type="submit" id="btnSave">Speichern</button><button type="button" id="btnCancel" hidden>Abbrechen</button></div>
-    </form>
-    <div class="msg" id="msg" role="status"></div>
-    <details>
-      <summary>Aus Excel einfügen</summary>
-      <p>In Excel die Spalten Datum, Zahlungsart, Betrag und Kunden markieren, kopieren und hier einfügen. Fehlt die Kundenzahl, zählt jede Zahlung als ein Kunde. Jede Zeile wird als neue Zahlung angelegt, also dieselben Zeilen nicht zweimal einfügen.</p>
-      <textarea id="paste" aria-label="Daten aus Excel" placeholder="01.10.2026	Paysafe	50,00	1"></textarea>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
-        <button type="button" id="btnImport">Übernehmen</button><span class="msg" id="impMsg"></span>
-      </div>
-    </details>
-  </section>
 
   <section class="panel">
     <div class="panel-head"><h2>Zahlungen im Monat</h2></div>
@@ -340,8 +369,8 @@ body{margin:0}
     else{
       tb.innerHTML=rows.map(function(r){
         var d=parseIso(r.date);
-        return '<tr><td class="num">'+fmtDate(r.date)+'</td><td>'+WD[d.getDay()]+'</td><td>'+esc(r.method)+'</td><td class="r num">'+eur.format(r.amount)+'</td><td class="r num">'+r.cust+'</td><td>'+esc(r.note)+'</td><td class="r"><button type="button" class="link" data-edit="'+r.id+'">Ändern</button><button type="button" class="link" data-del="'+r.id+'">Löschen</button></td></tr>';
-      }).join('')+'<tr class="sum"><td colspan="3">Summe '+MONTHS[selM]+'</td><td class="r num">'+eur.format(t.sales)+'</td><td class="r num">'+int.format(t.cust)+'</td><td colspan="2"></td></tr>';
+        return '<tr><td class="c-date num">'+fmtDate(r.date)+'</td><td class="c-day">'+WD[d.getDay()]+'</td><td class="c-method">'+esc(r.method)+'</td><td class="r num c-amount">'+eur.format(r.amount)+'</td><td class="r num c-cust">'+r.cust+(r.cust===1?' Kunde':' Kunden')+'</td><td class="c-note">'+esc(r.note)+'</td><td class="r c-act"><button type="button" class="link" data-edit="'+r.id+'">Ändern</button><button type="button" class="link" data-del="'+r.id+'">Löschen</button></td></tr>';
+      }).join('')+'<tr class="sum"><td colspan="3" class="c-date">Summe '+MONTHS[selM]+'</td><td class="r num c-amount">'+eur.format(t.sales)+'</td><td class="r num c-cust">'+int.format(t.cust)+' Kunden</td><td colspan="2" class="c-act"></td></tr>';
     }
   }
 
