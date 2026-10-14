@@ -90,14 +90,23 @@ details p{color:var(--muted);font-size:.85rem;margin:8px 0 0}
 .err{color:var(--warn)!important}
 .loading{opacity:.5;pointer-events:none}
 [hidden]{display:none!important}
+pre.ex{margin:8px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;white-space:pre-wrap;color:var(--muted)}
+details{min-width:0}
+.prev-wrap{margin-top:12px;display:grid;gap:10px;overflow-x:auto;min-width:0}
+.prev-wrap > *{min-width:0}
+table.prev td:last-child{white-space:normal}
+table.prev td,table.prev th{padding:6px 8px}
+table.prev tr.skip td{color:var(--muted);text-decoration:line-through}
+table.prev tr.skip td:last-child{text-decoration:none}
+.prev-notes{margin:0;padding-left:18px;color:var(--gold);font-size:.9rem;display:grid;gap:4px}
 select,input,textarea{font-size:16px}
 button.link{min-height:36px}
 @media (max-width:640px){
   .table-wrap{overflow:visible}
-  table thead{display:none}
-  table,tbody{display:block}
-  tbody tr{display:grid;grid-template-columns:1fr auto;grid-template-areas:"date amount" "method cust" "note note" "act act";column-gap:12px;row-gap:2px;padding:12px 2px;border-bottom:1px solid var(--line)}
-  tbody td{display:block;border:0;padding:0;white-space:normal}
+  table.list thead{display:none}
+  table.list,table.list tbody{display:block}
+  table.list tbody tr{display:grid;grid-template-columns:1fr auto;grid-template-areas:"date amount" "method cust" "note note" "act act";column-gap:12px;row-gap:2px;padding:12px 2px;border-bottom:1px solid var(--line)}
+  table.list tbody td{display:block;border:0;padding:0;white-space:normal}
   td.c-date{grid-area:date;font-weight:600}
   td.c-day{display:none}
   td.c-amount{grid-area:amount;font-weight:700;font-family:var(--f-display)}
@@ -164,12 +173,17 @@ body{margin:0}
     </form>
     <div class="msg" id="msg" role="status"></div>
     <details>
-      <summary>Aus Excel einfügen</summary>
-      <p>In Excel die Spalten Datum, Zahlungsart, Betrag und Kunden markieren, kopieren und hier einfügen. Fehlt die Kundenzahl, zählt jede Zahlung als ein Kunde. Jede Zeile wird als neue Zahlung angelegt, also dieselben Zeilen nicht zweimal einfügen.</p>
-      <textarea id="paste" aria-label="Daten aus Excel" placeholder="01.10.2026	Paysafe	50,00	1"></textarea>
+      <summary>Mehrere Zahlungen nachtragen</summary>
+      <p>Notizen oder Excel-Zeilen einfügen, dann „Prüfen“. Erkannt wird zum Beispiel:</p>
+      <pre class="ex">Überweisung Gesamt: 40,00€
+Amazon Gesamt: 25€
+03.02.26 Tagesumsatz: 65,00€</pre>
+      <p>Das Datum darf vor oder nach den Beträgen stehen. Aus Excel gehen die Spalten Datum, Zahlungsart, Betrag und Kunden. Vor dem Speichern siehst du eine Vorschau.</p>
+      <textarea id="paste" aria-label="Zahlungen nachtragen" placeholder="Überweisung Gesamt: 40,00€"></textarea>
       <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
-        <button type="button" id="btnImport">Übernehmen</button><span class="msg" id="impMsg"></span>
+        <button type="button" id="btnImport">Prüfen</button><button type="button" class="primary" id="btnImportSave" hidden></button><span class="msg" id="impMsg"></span>
       </div>
+      <div id="impPreview" class="prev-wrap" hidden></div>
     </details>
   </section>
 
@@ -211,7 +225,7 @@ body{margin:0}
   <section class="panel">
     <div class="panel-head"><h2>Zahlungen im Monat</h2></div>
     <div class="table-wrap">
-      <table>
+      <table class="list">
         <thead><tr><th>Datum</th><th>Tag</th><th>Zahlungsart</th><th class="r">Betrag</th><th class="r">Kunden</th><th>Notiz</th><th></th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -419,12 +433,13 @@ body{margin:0}
     state.goals[k]=v;render();
   });
 
-  // Einfügen aus Excel: Datum, Zahlungsart, Betrag, Kunden (optional)
-  function num(s){s=String(s||'').replace(/[€\s]/g,'');if(s.indexOf(',')>-1)s=s.replace(/\./g,'').replace(',','.');return parseFloat(s)}
-  function toIso(s){
-    s=String(s||'').trim();var m=s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
-    if(m){var y=+m[3];if(y<100)y+=2000;return iso(y,+m[2]-1,+m[1])}
-    if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;return null;
+  // Nachtragen: Excel-Zeilen (Datum, Zahlungsart, Betrag, Kunden) oder Notizen wie
+  //   Überweisung Gesamt: 40,00€ / Amazon Gesamt: 25€ / 03.02.26 Tagesumsatz: 65,00€
+  function num(s){s=String(s||'').replace(/[€\s]/g,'');if(/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');else if(s.indexOf(',')>-1)s=s.replace(/\./g,'').replace(',','.');return parseFloat(s)}
+  function dateIn(s){
+    var m=String(s||'').match(/(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})(?!\d)/);
+    if(m){var y=+m[3];if(y<100)y+=2000;var d=+m[1],mo=+m[2];if(mo>=1&&mo<=12&&d>=1&&d<=31)return iso(y,mo-1,d)}
+    m=String(s||'').match(/(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:null;
   }
   function toMethod(s){
     s=String(s||'').toLowerCase();
@@ -433,19 +448,84 @@ body{margin:0}
     if(s.indexOf('überw')>-1||s.indexOf('ueberw')>-1||s.indexOf('uberw')>-1)return METHODS[2];
     return null;
   }
-  $('btnImport').addEventListener('click',async function(){
-    var lines=$('paste').value.split(/\r?\n/),rows=[],bad=0;
-    lines.forEach(function(l){
-      if(!l.trim())return;var p=l.split(/\t|;/);
-      var d=toIso(p[0]),m=toMethod(p[1]),s=num(p[2]),c=p[3]===undefined||String(p[3]).trim()===''?1:parseInt(p[3],10);
-      if(d&&m&&!isNaN(s)&&!isNaN(c))rows.push({user_id:user.id,datum:d,zahlungsart:m,betrag:Math.round(s*100)/100,kunden:c});else bad++;
+  // letzter Geldbetrag in der Zeile, Datum vorher entfernen
+  function amountIn(s){
+    s=String(s||'').replace(/\d{1,2}\.\d{1,2}\.\d{2,4}/g,' ').replace(/\d+\s*kund\w*/ig,' ');
+    var all=s.match(/\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?/g);
+    return all?num(all[all.length-1]):NaN;
+  }
+  function custIn(s){var m=String(s||'').match(/(\d+)\s*kund/i);return m?+m[1]:null}
+  function parseImport(text){
+    var out={rows:[],issues:[],checks:[]},pending=[],cur=null;
+    function add(d,p){out.rows.push({datum:d,zahlungsart:p.method,betrag:Math.round(p.amount*100)/100,kunden:p.cust===null?0:p.cust,zeile:p.line})}
+    text.split(/\r?\n/).forEach(function(raw,i){
+      var l=raw.trim(),n=i+1;if(!l)return;
+      var f=l.split(/\t|;/);
+      if(f.length>=3){ // Excel-Zeile
+        if(/^(datum|zahlungsart|betrag)/i.test(f[0].trim()))return; // Überschrift
+        var d=dateIn(f[0]),m=toMethod(f[1]),s=num(f[2]),c=f[3]===undefined||String(f[3]).trim()===''?null:parseInt(f[3],10);
+        if(d&&m&&!isNaN(s))add(d,{method:m,amount:s,cust:c===null?1:c,line:n});else out.issues.push({line:n,text:l,msg:'nicht erkannt'});
+        return;
+      }
+      var d2=dateIn(l),m2=toMethod(l),a=amountIn(l);
+      if(m2){ // Zahlungsart-Zeile
+        if(isNaN(a)){out.issues.push({line:n,text:l,msg:'kein Betrag gefunden'});return}
+        var p={method:m2,amount:a,cust:custIn(l),line:n};
+        if(d2)add(d2,p);else if(cur)add(cur,p);else pending.push(p);
+        return;
+      }
+      if(d2){ // Datumszeile, ggf. mit Tagesumsatz
+        if(pending.length){
+          var sum=0;pending.forEach(function(p){add(d2,p);sum+=p.amount});
+          if(!isNaN(a))out.checks.push({datum:d2,summe:Math.round(sum*100)/100,tages:a});
+          pending=[];cur=null;
+        } else cur=d2;
+        return;
+      }
+      if(/^(datum|zahlungsart|betrag)/i.test(l))return; // Überschrift
+      out.issues.push({line:n,text:l,msg:'nicht erkannt'});
     });
-    if(!rows.length){flash('Keine Zeile erkannt. Erwartet: Datum, Zahlungsart, Betrag, Kunden.',$('impMsg'));return}
+    pending.forEach(function(p){out.issues.push({line:p.line,text:p.method+' '+p.amount,msg:'kein Datum gefunden'})});
+    return out;
+  }
+  var importRows=[];
+  function sameExists(r){return state.pay.some(function(p){return p.date===r.datum&&p.method===r.zahlungsart&&Math.abs(p.amount-r.betrag)<0.005})}
+  $('btnImport').addEventListener('click',function(){
+    var res=parseImport($('paste').value),h=[];
+    importRows=res.rows.filter(function(r){return !sameExists(r)});
+    var dup=res.rows.length-importRows.length;
+    if(!res.rows.length&&!res.issues.length){$('impPreview').hidden=true;flash('Das Feld ist leer.',$('impMsg'));return}
+    if(res.rows.length){
+      h.push('<table class="prev"><thead><tr><th>Datum</th><th>Zahlungsart</th><th class="r">Betrag</th><th class="r">Kunden</th><th></th></tr></thead><tbody>');
+      res.rows.forEach(function(r){
+        var d=sameExists(r);
+        h.push('<tr'+(d?' class="skip"':'')+'><td class="num">'+fmtDate(r.datum)+'</td><td>'+r.zahlungsart+'</td><td class="r num">'+eur.format(r.betrag)+'</td><td class="r num">'+(r.kunden||'-')+'</td><td>'+(d?'schon vorhanden, wird übersprungen':'')+'</td></tr>');
+      });
+      h.push('</tbody></table>');
+    }
+    var warn=[];
+    res.checks.forEach(function(c){
+      if(Math.abs(c.summe-c.tages)>=0.005)warn.push('Am '+fmtDate(c.datum)+' ergeben die Zahlungsarten '+eur.format(c.summe)+', als Tagesumsatz steht aber '+eur.format(c.tages)+'. Bitte prüfen.');
+      else warn.push('Am '+fmtDate(c.datum)+' stimmt die Summe mit dem Tagesumsatz überein ('+eur.format(c.tages)+').');
+    });
+    res.issues.forEach(function(x){warn.push('Zeile '+x.line+' ('+esc(x.text)+'): '+x.msg+'.')});
+    if(res.rows.some(function(r){return !r.kunden}))warn.push('Für Zeilen ohne Kundenzahl wird 0 gespeichert. Die Zahl lässt sich danach über „Ändern“ nachtragen.');
+    if(warn.length)h.push('<ul class="prev-notes">'+warn.map(function(w){return '<li>'+w+'</li>'}).join('')+'</ul>');
+    $('impPreview').innerHTML=h.join('');$('impPreview').hidden=false;
+    $('btnImportSave').hidden=!importRows.length;
+    $('btnImportSave').textContent=importRows.length===1?'1 Zahlung speichern':importRows.length+' Zahlungen speichern';
+    $('impMsg').textContent=importRows.length?'':(dup?'Alles schon vorhanden.':'Nichts zum Speichern erkannt.');
+  });
+  $('paste').addEventListener('input',function(){importRows=[];$('btnImportSave').hidden=true;$('impPreview').hidden=true});
+  $('btnImportSave').addEventListener('click',async function(){
+    if(!importRows.length)return;
+    var rows=importRows.map(function(r){return {user_id:user.id,datum:r.datum,zahlungsart:r.zahlungsart,betrag:r.betrag,kunden:r.kunden,notiz:null}});
     var r=await sb.from('zahlungen').insert(rows).select();
-    if(r.error){flash('Übernehmen fehlgeschlagen: '+r.error.message,$('impMsg'));return}
+    if(r.error){flash('Speichern fehlgeschlagen: '+r.error.message,$('impMsg'));return}
     r.data.forEach(function(x){state.pay.push(toRow(x))});
-    render();$('paste').value='';
-    flash(rows.length+' Zahlungen übernommen'+(bad?', '+bad+' Zeilen nicht erkannt (z. B. Überschriften)':'')+'.',$('impMsg'));
+    var last=parseIso(rows[rows.length-1].datum);selY=last.getFullYear();selM=last.getMonth();$('selMonth').value=selM;$('selYear').value=selY;
+    importRows=[];$('paste').value='';$('impPreview').hidden=true;$('btnImportSave').hidden=true;
+    render();flash(rows.length+(rows.length===1?' Zahlung':' Zahlungen')+' gespeichert.',$('impMsg'));
   });
 })();
 </script>
