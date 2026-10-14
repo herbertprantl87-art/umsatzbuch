@@ -90,6 +90,9 @@ details p{color:var(--muted);font-size:.85rem;margin:8px 0 0}
 .err{color:var(--warn)!important}
 .loading{opacity:.5;pointer-events:none}
 [hidden]{display:none!important}
+.login label.chk{display:flex;gap:8px;align-items:flex-start;font-weight:500;color:var(--fg);font-size:.9rem}
+.login label.chk input{width:auto;margin-top:3px}
+.bar-btns{display:flex;flex-wrap:wrap;gap:4px}
 pre.ex{margin:8px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:.85rem;white-space:pre-wrap;color:var(--muted)}
 details{min-width:0}
 .prev-wrap{margin-top:12px;display:grid;gap:10px;overflow-x:auto;min-width:0}
@@ -143,6 +146,19 @@ body{margin:0}
   </form>
   <p id="loginMsg" role="status"></p>
 </section>
+<section class="login" id="unlock" hidden>
+  <h1 id="ulTitle">Datenkennwort</h1>
+  <p id="ulText"></p>
+  <form id="unlockForm" style="display:grid;gap:12px">
+    <label for="uPw">Datenkennwort<input id="uPw" type="password" autocomplete="current-password" required></label>
+    <label for="uPw2" id="uPw2Wrap">Datenkennwort wiederholen<input id="uPw2" type="password" autocomplete="new-password"></label>
+    <label class="chk" id="uNotedWrap"><input type="checkbox" id="uNoted"> Ich habe das Datenkennwort sicher notiert.</label>
+    <label class="chk"><input type="checkbox" id="uRemember"> Auf diesem Gerät merken</label>
+    <button class="primary" type="submit" id="uBtn">Entsperren</button>
+  </form>
+  <p id="unlockMsg" role="status"></p>
+  <button type="button" class="link" id="uLogout">Abmelden</button>
+</section>
 <p class="msg" id="cfgMsg" hidden style="text-align:center;margin-top:12vh"></p>
 <div class="wrap" id="app" hidden>
   <header>
@@ -158,7 +174,7 @@ body{margin:0}
 
   <div class="note" id="userBar">
     <span>Angemeldet als <b id="userMail"></b></span>
-    <button type="button" class="link" id="btnLogout">Abmelden</button>
+    <span class="bar-btns"><button type="button" class="link" id="btnExport">Sicherung herunterladen</button><button type="button" class="link" id="btnLogout">Abmelden</button></span>
   </div>
 
   <section class="panel">
@@ -257,11 +273,38 @@ Amazon Gesamt: 25€
   }
   var sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
 
-  var state={pay:[],goals:{}};
+  var state={pay:[],goals:{}},goalIds={};
   var now=new Date(),selY=now.getFullYear(),selM=now.getMonth();
-  var user=null,editId=null;
+  var user=null,editId=null,KEY=null,tresor=null;
 
-  // Anmeldung
+  // ---------- Verschlüsselung im Browser (AES-GCM, Schlüssel aus dem Datenkennwort) ----------
+  var te=new TextEncoder(),tdec=new TextDecoder();
+  function b64(u8){var s='';for(var i=0;i<u8.length;i++)s+=String.fromCharCode(u8[i]);return btoa(s)}
+  function unb64(s){var b=atob(s),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
+  async function derive(pw,salt,iter){
+    var base=await crypto.subtle.importKey('raw',te.encode(pw),'PBKDF2',false,['deriveKey']);
+    return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:iter,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  }
+  async function enc(obj,key){
+    var s=JSON.stringify(obj);s+=' '.repeat(128-(te.encode(s).length%128)); // auf 128 Byte auffüllen, damit die Länge nichts verrät
+    var iv=crypto.getRandomValues(new Uint8Array(12));
+    var ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key||KEY,te.encode(s)));
+    var out=new Uint8Array(12+ct.length);out.set(iv);out.set(ct,12);return 'v1:'+b64(out);
+  }
+  async function dec(str,key){
+    var u=unb64(String(str).slice(3));
+    var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:u.slice(0,12)},key||KEY,u.slice(12));
+    return JSON.parse(tdec.decode(pt));
+  }
+
+  // Schlüssel auf diesem Gerät merken (IndexedDB, nicht auslesbar)
+  function idb(){return new Promise(function(res,rej){var r=indexedDB.open('umsatzbuch',1);r.onupgradeneeded=function(){r.result.createObjectStore('keys')};r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)}})}
+  async function idbDo(mode,fn){try{var db=await idb();return await new Promise(function(res){var t=db.transaction('keys',mode),q=fn(t.objectStore('keys'));t.oncomplete=function(){res(q&&q.result)};t.onerror=function(){res(null)}})}catch(e){return null}}
+  function idbGet(k){return idbDo('readonly',function(s){return s.get(k)})}
+  function idbSet(k,v){return idbDo('readwrite',function(s){return s.put(v,k)})}
+  function idbDel(k){return idbDo('readwrite',function(s){return s.delete(k)})}
+
+  // ---------- Anmeldung ----------
   $('loginForm').addEventListener('submit',async function(e){
     e.preventDefault();
     $('loginMsg').className='';$('loginMsg').textContent='Anmeldung läuft …';
@@ -269,28 +312,120 @@ Amazon Gesamt: 25€
     if(r.error){$('loginMsg').className='err';$('loginMsg').textContent='Anmeldung fehlgeschlagen. E-Mail oder Passwort stimmt nicht.';return}
     $('lPw').value='';$('loginMsg').textContent='';
   });
-  $('btnLogout').addEventListener('click',function(){sb.auth.signOut()});
+  async function logout(){var id=user&&user.id;KEY=null;if(id)await idbDel(id);sb.auth.signOut()}
+  $('btnLogout').addEventListener('click',logout);
+  $('uLogout').addEventListener('click',logout);
 
   sb.auth.onAuthStateChange(function(_ev,session){
     var u=session?session.user:null;
     if(u&&user&&u.id===user.id)return;
     user=u;
-    if(user){$('login').hidden=true;$('app').hidden=false;$('userMail').textContent=user.email;loadAll()}
-    else{$('app').hidden=true;$('login').hidden=false;state={pay:[],goals:{}}}
+    if(user){$('login').hidden=true;afterLogin()}
+    else{KEY=null;tresor=null;$('app').hidden=true;$('unlock').hidden=true;$('login').hidden=false;state={pay:[],goals:{}};goalIds={}}
   });
 
-  function toRow(r){return {id:r.id,date:r.datum,method:r.zahlungsart,amount:+r.betrag,cust:+r.kunden,note:r.notiz||''}}
+  async function afterLogin(){
+    var r=await sb.from('tresor_schluessel').select('salz,iterationen,pruefwert').maybeSingle();
+    if(r.error){showUnlock(false);umsg('Verbindung zur Datenbank fehlgeschlagen: '+r.error.message,true);return}
+    tresor=r.data;
+    if(tresor){
+      var k=await idbGet(user.id);
+      if(k){try{var v=await dec(tresor.pruefwert,k);if(v.ok==='umsatzbuch'){KEY=k;return openApp()}}catch(e){}await idbDel(user.id)}
+    }
+    showUnlock(!tresor);
+  }
+  function umsg(t,err){$('unlockMsg').textContent=t;$('unlockMsg').className=err?'err':''}
+  var setupMode=false;
+  function showUnlock(setup){
+    setupMode=setup;
+    $('ulTitle').textContent=setup?'Datenkennwort festlegen':'Datenkennwort eingeben';
+    $('ulText').textContent=setup
+      ?'Mit diesem Kennwort werden alle Zahlen verschlüsselt, bevor sie gespeichert werden. Niemand sonst kann sie lesen. Geht das Kennwort verloren, sind die Daten nicht wiederherstellbar. Bitte sicher notieren.'
+      :'Die Zahlen sind verschlüsselt. Mit dem Datenkennwort werden sie auf diesem Gerät lesbar.';
+    $('uPw2Wrap').hidden=!setup;$('uNotedWrap').hidden=!setup;
+    $('uPw').autocomplete=setup?'new-password':'current-password';
+    $('uBtn').textContent=setup?'Festlegen':'Entsperren';
+    $('uPw').value='';$('uPw2').value='';umsg('');
+    $('app').hidden=true;$('unlock').hidden=false;$('uPw').focus();
+  }
+  $('unlockForm').addEventListener('submit',async function(e){
+    e.preventDefault();
+    var pw=$('uPw').value;
+    if(setupMode){
+      if(pw.length<8){umsg('Bitte mindestens 8 Zeichen.',true);return}
+      if(pw!==$('uPw2').value){umsg('Die beiden Eingaben stimmen nicht überein.',true);return}
+      if(!$('uNoted').checked){umsg('Bitte bestätigen, dass das Kennwort notiert ist.',true);return}
+      umsg('Wird eingerichtet …');
+      var salt=crypto.getRandomValues(new Uint8Array(16)),iter=600000;
+      var key=await derive(pw,salt,iter);
+      var row={user_id:user.id,salz:b64(salt),iterationen:iter,pruefwert:await enc({ok:'umsatzbuch'},key)};
+      var r=await sb.from('tresor_schluessel').insert(row);
+      if(r.error){umsg('Einrichten fehlgeschlagen: '+r.error.message,true);return}
+      tresor=row;KEY=key;
+    } else {
+      umsg('Wird geprüft …');
+      var k=await derive(pw,unb64(tresor.salz),tresor.iterationen);
+      try{var v=await dec(tresor.pruefwert,k);if(v.ok!=='umsatzbuch')throw 0}catch(err){umsg('Das Datenkennwort stimmt nicht.',true);return}
+      KEY=k;
+    }
+    if($('uRemember').checked)await idbSet(user.id,KEY);
+    $('uPw').value='';$('uPw2').value='';
+    openApp();
+  });
+
+  async function openApp(){
+    $('unlock').hidden=true;$('app').hidden=false;$('userMail').textContent=user.email;
+    await migrate();
+    await loadAll();
+  }
+
+  // Einträge als verschlüsselte Objekte: t:'z' Zahlung, t:'g' Monatsziel
+  function payObj(d,m,b,k,n){return {t:'z',d:d,a:m,b:b,k:k,n:n||''}}
+  function fromObj(id,o){return {id:id,date:o.d,method:o.a,amount:+o.b,cust:+o.k,note:o.n||''}}
 
   async function loadAll(){
     $('app').classList.add('loading');
-    var a=await sb.from('zahlungen').select('id,datum,zahlungsart,betrag,kunden,notiz').order('datum').order('id');
-    var b=await sb.from('monatsziele').select('monat,ziel');
+    var a=await sb.from('eintraege').select('id,daten').order('id');
+    if(a.error){$('app').classList.remove('loading');flash('Daten konnten nicht geladen werden: '+a.error.message);return}
+    var pay=[],goals={},gids={},bad=0;
+    for(var i=0;i<a.data.length;i++){
+      var r=a.data[i];
+      try{var o=await dec(r.daten);if(o.t==='z')pay.push(fromObj(r.id,o));else if(o.t==='g'){goals[o.m]=+o.z;gids[o.m]=r.id}}catch(e){bad++}
+    }
+    state.pay=pay;state.goals=goals;goalIds=gids;
     $('app').classList.remove('loading');
-    if(a.error||b.error){flash('Daten konnten nicht geladen werden: '+(a.error||b.error).message);return}
-    state.pay=a.data.map(toRow);
-    state.goals={};b.data.forEach(function(r){state.goals[r.monat]=+r.ziel});
     render();
+    if(bad)flash(bad+' Einträge konnten nicht entschlüsselt werden.');
   }
+
+  // Einmalig: unverschlüsselte Altdaten verschlüsselt übernehmen und danach löschen
+  async function migrate(){
+    var a=await sb.from('zahlungen').select('id,datum,zahlungsart,betrag,kunden,notiz');
+    var b=await sb.from('monatsziele').select('monat,ziel');
+    var za=a.error?[]:a.data,zb=b.error?[]:b.data;
+    if(!za.length&&!zb.length)return;
+    var rows=[];
+    for(var i=0;i<za.length;i++){var x=za[i];rows.push({user_id:user.id,daten:await enc(payObj(x.datum,x.zahlungsart,+x.betrag,+x.kunden,x.notiz))})}
+    for(var j=0;j<zb.length;j++){rows.push({user_id:user.id,daten:await enc({t:'g',m:zb[j].monat,z:+zb[j].ziel})})}
+    var r=await sb.from('eintraege').insert(rows);
+    if(r.error){flash('Übernahme der Altdaten fehlgeschlagen: '+r.error.message);return}
+    if(za.length)await sb.from('zahlungen').delete().eq('user_id',user.id).in('id',za.map(function(x){return x.id}));
+    if(zb.length)await sb.from('monatsziele').delete().eq('user_id',user.id);
+    flash(rows.length+' bisherige Einträge wurden verschlüsselt.');
+  }
+
+  // Sicherung als CSV (entschlüsselt, nur auf diesem Gerät)
+  $('btnExport').addEventListener('click',function(){
+    var lines=['Datum;Zahlungsart;Betrag;Kunden;Notiz'];
+    state.pay.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.id-b.id}).forEach(function(p){
+      lines.push([fmtDate(p.date),p.method,p.amount.toFixed(2).replace('.',','),p.cust,'"'+String(p.note).replace(/"/g,'""')+'"'].join(';'));
+    });
+    var blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='umsatzbuch-sicherung-'+iso(now.getFullYear(),now.getMonth(),now.getDate())+'.csv';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+    flash('Sicherung mit '+state.pay.length+' Zahlungen heruntergeladen. Bitte sicher aufbewahren, die Datei ist nicht verschlüsselt.');
+  });
 
   // Auswahl
   MONTHS.forEach(function(n,i){var o=document.createElement('option');o.value=i;o.textContent=n;$('selMonth').appendChild(o)});
@@ -400,7 +535,7 @@ Amazon Gesamt: 25€
       var id=+b.dataset.del;
       if(pendingDel===id){
         pendingDel=null;
-        var r2=await sb.from('zahlungen').delete().eq('user_id',user.id).eq('id',id);
+        var r2=await sb.from('eintraege').delete().eq('user_id',user.id).eq('id',id);
         if(r2.error){flash('Löschen fehlgeschlagen: '+r2.error.message);return}
         state.pay=state.pay.filter(function(x){return x.id!==id});
         if(editId===id)resetForm();
@@ -414,12 +549,13 @@ Amazon Gesamt: 25€
     e.preventDefault();
     var d=$('fDate').value,m=$('fMethod').value,s=parseFloat(String($('fSales').value).replace(',','.')),c=parseInt($('fCust').value,10);
     if(!d||METHODS.indexOf(m)<0||isNaN(s)||isNaN(c)){flash('Bitte Datum, Zahlungsart, Betrag und Kunden ausfüllen.');return}
-    var rec={user_id:user.id,datum:d,zahlungsart:m,betrag:Math.round(s*100)/100,kunden:c,notiz:$('fNote').value.trim()||null};
+    var o=payObj(d,m,Math.round(s*100)/100,c,$('fNote').value.trim());
+    var daten=await enc(o);
     var r=editId
-      ? await sb.from('zahlungen').update(rec).eq('user_id',user.id).eq('id',editId).select().single()
-      : await sb.from('zahlungen').insert(rec).select().single();
+      ? await sb.from('eintraege').update({daten:daten}).eq('user_id',user.id).eq('id',editId).select('id').single()
+      : await sb.from('eintraege').insert({user_id:user.id,daten:daten}).select('id').single();
     if(r.error){flash('Speichern fehlgeschlagen: '+r.error.message);return}
-    var row=toRow(r.data),was=editId;
+    var row=fromObj(r.data.id,o),was=editId;
     if(was)state.pay=state.pay.map(function(x){return x.id===was?row:x});else state.pay.push(row);
     var dd=parseIso(d);selY=dd.getFullYear();selM=dd.getMonth();$('selMonth').value=selM;$('selYear').value=selY;
     resetForm();render();
@@ -428,9 +564,12 @@ Amazon Gesamt: 25€
 
   $('inGoal').addEventListener('change',async function(){
     var v=parseFloat(this.value);v=isNaN(v)?0:v;var k=selY+'-'+pad(selM+1);
-    var r=await sb.from('monatsziele').upsert({user_id:user.id,monat:k,ziel:v},{onConflict:'user_id,monat'});
+    var daten=await enc({t:'g',m:k,z:v});
+    var r=goalIds[k]
+      ? await sb.from('eintraege').update({daten:daten}).eq('user_id',user.id).eq('id',goalIds[k]).select('id').single()
+      : await sb.from('eintraege').insert({user_id:user.id,daten:daten}).select('id').single();
     if(r.error){flash('Ziel konnte nicht gespeichert werden: '+r.error.message);return}
-    state.goals[k]=v;render();
+    goalIds[k]=r.data.id;state.goals[k]=v;render();
   });
 
   // Nachtragen: Excel-Zeilen (Datum, Zahlungsart, Betrag, Kunden) oder Notizen wie
@@ -519,11 +658,12 @@ Amazon Gesamt: 25€
   $('paste').addEventListener('input',function(){importRows=[];$('btnImportSave').hidden=true;$('impPreview').hidden=true});
   $('btnImportSave').addEventListener('click',async function(){
     if(!importRows.length)return;
-    var rows=importRows.map(function(r){return {user_id:user.id,datum:r.datum,zahlungsart:r.zahlungsart,betrag:r.betrag,kunden:r.kunden,notiz:null}});
-    var r=await sb.from('zahlungen').insert(rows).select();
+    var objs=importRows.map(function(r){return payObj(r.datum,r.zahlungsart,r.betrag,r.kunden,'')});
+    var rows=[];for(var i=0;i<objs.length;i++)rows.push({user_id:user.id,daten:await enc(objs[i])});
+    var r=await sb.from('eintraege').insert(rows).select('id');
     if(r.error){flash('Speichern fehlgeschlagen: '+r.error.message,$('impMsg'));return}
-    r.data.forEach(function(x){state.pay.push(toRow(x))});
-    var last=parseIso(rows[rows.length-1].datum);selY=last.getFullYear();selM=last.getMonth();$('selMonth').value=selM;$('selYear').value=selY;
+    r.data.forEach(function(x,i){state.pay.push(fromObj(x.id,objs[i]))});
+    var last=parseIso(objs[objs.length-1].d);selY=last.getFullYear();selM=last.getMonth();$('selMonth').value=selM;$('selYear').value=selY;
     importRows=[];$('paste').value='';$('impPreview').hidden=true;$('btnImportSave').hidden=true;
     render();flash(rows.length+(rows.length===1?' Zahlung':' Zahlungen')+' gespeichert.',$('impMsg'));
   });
