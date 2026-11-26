@@ -627,15 +627,26 @@
       $('aTg').focus();window.scrollTo({top:$('aForm').offsetTop-80,behavior:'smooth'});
       return;
     }
-    var id=+b.dataset.adel;
+    // Löschen: die aus diesem Auftrag übernommenen Zahlungen werden im Umsatzbuch mitgelöscht
+    var id=+b.dataset.adel,ad=aById(id),ub=ad?uebernommen(ad):[],ubSum=0;
+    ub.forEach(function(p){ubSum+=p.amount});
     if(aPendingDel===id){
       aPendingDel=null;
+      if(ub.length){
+        var pids=ub.map(function(p){return p.id});
+        var rz=await sb.from('eintraege').delete().eq('user_id',user.id).in('id',pids);
+        if(rz.error){flash('Löschen fehlgeschlagen: '+rz.error.message,$('aMsg'));return}
+        state.pay=state.pay.filter(function(x){return pids.indexOf(x.id)<0});
+        if(pids.indexOf(editId)>-1)resetForm();
+        render();
+      }
       var r=await sb.from('eintraege').delete().eq('user_id',user.id).eq('id',id);
-      if(r.error){flash('Löschen fehlgeschlagen: '+r.error.message,$('aMsg'));return}
+      if(r.error){flash('Löschen fehlgeschlagen: '+r.error.message,$('aMsg'));renderAuf();return}
       state.auf=state.auf.filter(function(x){return x.id!==id});
       if(aEditId===id)aReset();
-      renderAuf();flash('Auftrag gelöscht.',$('aMsg'));
-    } else {aPendingDel=id;b.textContent='Wirklich löschen?';b.style.color='var(--warn)'}
+      renderAuf();
+      flash('Auftrag gelöscht'+(ub.length?', dazu im Umsatzbuch '+(ub.length===1?'1 Zahlung':ub.length+' Zahlungen')+' ('+eur.format(ubSum)+')':'')+'.',$('aMsg'));
+    } else {aPendingDel=id;b.textContent=ub.length?'Wirklich löschen? Auch '+eur.format(ubSum)+' im Umsatzbuch':'Wirklich löschen?';b.style.color='var(--warn)'}
   });
 
   // Umschalten oben links: Umsatzbuch / Aufträge (Auswahl bleibt für diesen Tab)
