@@ -212,6 +212,8 @@
     $('btnSave').textContent='Speichern';$('btnCancel').hidden=true;
   }
   $('fDate').value=iso(now.getFullYear(),now.getMonth(),now.getDate());
+  $('fDate').addEventListener('input',showDay);
+  $('fDate').addEventListener('change',showDay);
   resetForm();
 
   function monthRows(y,m){
@@ -229,11 +231,17 @@
     return '<span class="'+(p>=0?'up':'down')+'">'+(p>=0?'+':'')+p.toFixed(1).replace('.',',')+' %</span> zum Vormonat ('+fmt(prev)+')';
   }
 
+  // Tagesumsatz im Kasten oben: der Tag aus dem Datumsfeld (leer = heute)
+  function showDay(){
+    var h=new Date(),heute=iso(h.getFullYear(),h.getMonth(),h.getDate());
+    var tag=$('fDate').value||heute,sum=0;
+    state.pay.forEach(function(p){if(p.date===tag)sum+=p.amount});
+    $('kToday').textContent=eur.format(sum);
+    $('kTodayLabel').textContent=tag===heute?'Umsatz heute':'Umsatz am '+WD_SHORT[(parseIso(tag).getDay()+6)%7]+', '+fmtDate(tag);
+  }
+
   function render(){
-    // Umsatz heute: immer der aktuelle Tag, unabhängig vom gewählten Monat
-    var h=new Date(),heute=iso(h.getFullYear(),h.getMonth(),h.getDate()),sumHeute=0;
-    state.pay.forEach(function(p){if(p.date===heute)sumHeute+=p.amount});
-    $('kToday').textContent=eur.format(sumHeute);
+    showDay();
 
     var rows=monthRows(selY,selM),t=totals(rows);
     var py=selM===0?selY-1:selY,pm=selM===0?11:selM-1;
@@ -305,7 +313,7 @@
     var b=e.target.closest('button');if(!b)return;
     if(b.dataset.edit){
       var r=byId(+b.dataset.edit);if(!r)return;
-      editId=r.id;$('fDate').value=r.date;$('fMethod').value=r.method;$('fSales').value=r.amount;$('fCust').value=r.cust;$('fNote').value=r.note;
+      editId=r.id;$('fDate').value=r.date;$('fMethod').value=r.method;$('fSales').value=r.amount;$('fCust').value=r.cust;$('fNote').value=r.note;showDay();
       $('btnSave').textContent='Änderung speichern';$('btnCancel').hidden=false;
       $('fSales').focus();window.scrollTo({top:$('form').offsetTop-80,behavior:'smooth'});
     }
