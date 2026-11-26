@@ -142,6 +142,67 @@ button.link{min-height:36px}
 .m-sub{font-size:.82rem;color:var(--muted)}
 @media (max-width:700px){.methods{grid-template-columns:1fr}}
 body{margin:0}
+/* Umschalten Umsatzbuch / Aufträge */
+.view{display:contents}
+h1 .view-sel{font:inherit;color:var(--on-bg);background:transparent;border:1px solid color-mix(in srgb,var(--on-bg) 35%,transparent);border-radius:10px;padding:2px 6px;cursor:pointer;max-width:100%}
+h1 .view-sel option{background:var(--surface);color:var(--fg);font-family:var(--f-body);font-size:16px}
+.today .sub-line{flex-basis:100%;font-size:.88rem;color:var(--muted)}
+.today .sub-line:empty{display:none}
+/* Aufträge */
+.auf-list{display:grid;gap:10px}
+.auf-list.done{margin-top:12px}
+.auf{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:start;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:12px 14px}
+.auf.st-ok{border-left-color:var(--accent)}
+.auf.st-gold{border-left-color:var(--gold)}
+.auf.st-red{border-left-color:var(--warn)}
+.auf-chk{width:22px;height:22px;margin:2px 0 0;padding:0;accent-color:var(--accent);cursor:pointer}
+.auf-main{min-width:0;display:grid;gap:2px}
+.auf-top{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;font-weight:600}
+.badge{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+.auf a{color:var(--accent);text-decoration:none}
+.auf a:hover{text-decoration:underline}
+.auf-when{font-size:.88rem;color:var(--muted)}
+.auf-when .st-ok{color:var(--accent)} .auf-when .st-gold{color:var(--gold)} .auf-when .st-red{color:var(--warn)}
+.auf-note{font-size:.92rem;white-space:pre-wrap;overflow-wrap:anywhere}
+.auf-act{display:flex;flex-wrap:wrap;justify-content:flex-end}
+.auf-list.done .auf{opacity:.6}
+.auf-list.done .auf-note{text-decoration:line-through}
+form.entry input{min-width:0}
+/* Dauer-Knöpfe und Verlängern-Fenster */
+.quick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.85rem;color:var(--muted)}
+.quick button{padding:6px 12px;border-radius:999px;font-weight:500;font-size:.88rem}
+.quick button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.quick label{display:flex;gap:6px;align-items:center}
+.quick input{width:80px}
+#aForm{grid-template-columns:repeat(4,minmax(0,1fr)) auto}
+#aForm .quick{grid-column:1/-1}
+#aForm label[for="aNote"]{grid-column:span 2}
+#aForm .quick label{display:flex;font-size:.85rem;font-weight:500}
+#aForm .quick input{width:80px}
+@media (max-width:860px){#aForm{grid-template-columns:1fr 1fr}#aForm label[for="aNote"]{grid-column:1/-1}}
+dialog.dlg{background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:22px;width:min(480px,calc(100vw - 32px))}
+dialog.dlg::backdrop{background:rgba(0,0,0,.65)}
+.dlg form{display:grid;gap:14px}
+.dlg p{margin:0;color:var(--muted)}
+.dlg p.msg:empty{display:none}
+.dlg-dates{display:grid;grid-template-columns:1fr 1fr 90px;gap:10px}
+.dlg-dates label{display:grid;gap:4px;font-size:.8rem;color:var(--muted);font-weight:600;min-width:0}
+.dlg-dates input{width:100%;min-width:0}
+.dlg-btns{display:flex;flex-wrap:wrap;gap:8px}
+@media (max-width:480px){.dlg-dates{grid-template-columns:1fr 1fr}.dlg-dates label[for="extTage"]{grid-column:1/-1}.dlg-btns button{flex:1}}
+@media (max-width:860px){label[for="aNote"]{grid-column:1/-1}}
+@media (max-width:640px){.auf{grid-template-columns:auto 1fr}.auf-act{grid-column:2;justify-content:flex-start;margin-left:-6px}}
+/* Betrag im Auftrag und Übernehmen ins Umsatzbuch */
+.auf-geld{font-size:.88rem;color:var(--muted)}
+.auf-geld b{color:var(--fg)}
+.auf-geld .ub{color:var(--accent)}
+.dlg-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dlg-grid label{display:grid;gap:4px;font-size:.8rem;color:var(--muted);font-weight:600;min-width:0}
+.dlg-grid input,.dlg-grid select{width:100%;min-width:0}
+.dlg-grid .full{grid-column:1/-1}
+.dlg label.chk{display:flex;gap:8px;align-items:flex-start;font-size:.9rem;cursor:pointer}
+.dlg label.chk input{width:auto;margin:3px 0 0;accent-color:var(--accent)}
+.dlg p.hinweis{color:var(--gold)}
 </style>
 </head>
 <body>
@@ -172,10 +233,10 @@ body{margin:0}
 <div class="wrap" id="app" hidden>
   <header>
     <div>
-      <h1>Umsatzbuch</h1>
-      <p>Zahlungen eintragen, Monat auf einen Blick.</p>
+      <h1><select id="selView" class="view-sel" aria-label="Bereich wählen"><option value="umsatz">Umsatzbuch</option><option value="auftraege">Aufträge</option></select></h1>
+      <p id="viewSub">Zahlungen eintragen, Monat auf einen Blick.</p>
     </div>
-    <div class="controls">
+    <div class="controls" id="monthCtl">
       <select id="selMonth" aria-label="Monat"></select>
       <select id="selYear" aria-label="Jahr"></select>
     </div>
@@ -186,6 +247,7 @@ body{margin:0}
     <span class="bar-btns"><button type="button" class="link" id="btnExport">Sicherung herunterladen</button><button type="button" class="link" id="btnLogout">Abmelden</button></span>
   </div>
 
+  <div class="view" id="viewUmsatz">
   <section class="today" aria-label="Umsatz heute">
     <div class="label" id="kTodayLabel">Umsatz heute</div>
     <div class="value num" id="kToday">0,00 €</div>
@@ -261,7 +323,87 @@ Amazon Gesamt: 25€
       </table>
     </div>
   </section>
+  </div>
+
+  <div class="view" id="viewAuftraege" hidden>
+  <section class="today" aria-label="Offene Aufträge">
+    <div class="label">Offene Aufträge</div>
+    <div class="value num" id="aOpenCnt">0</div>
+    <div class="sub-line" id="aOpenSub"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Auftrag eintragen</h2>
+    <form class="entry" id="aForm">
+      <label for="aArt">Art<select id="aArt"><option value="flat">Flat</option><option value="versand">Bestellung versenden</option><option value="sonst">Sonstiges</option></select></label>
+      <label for="aTg">Telegram-Name<input id="aTg" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="@name"></label>
+      <label for="aVon" id="aVonWrap">Von<input id="aVon" type="date"></label>
+      <label for="aBis"><span id="aBisLabel">Bis</span><input id="aBis" type="date"></label>
+      <div class="quick" id="aQuick">
+        <span>Dauer:</span>
+        <button type="button" data-dauer="7d">1 Woche</button><button type="button" data-dauer="14d">2 Wochen</button><button type="button" data-dauer="1m">1 Monat</button><button type="button" data-dauer="3m">3 Monate</button>
+        <label for="aTage">oder <input id="aTage" type="number" min="1" step="1" inputmode="numeric"> Tage</label>
+      </div>
+      <label for="aBetrag">Betrag (€)<input id="aBetrag" type="number" min="0" step="0.01" inputmode="decimal" placeholder="optional"></label>
+      <label for="aZa">Zahlungsart<select id="aZa"></select></label>
+      <label for="aNote">Was ist zu tun?<input id="aNote" type="text" placeholder="optional, z. B. 2 Pakete"></label>
+      <div class="form-btns"><button class="primary" type="submit" id="aSave">Speichern</button><button type="button" id="aCancel" hidden>Abbrechen</button></div>
+    </form>
+    <div class="msg" id="aMsg" role="status"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Zu erledigen</h2></div>
+    <div class="auf-list" id="aOpen"></div>
+  </section>
+
+  <section class="panel">
+    <details>
+      <summary>Erledigt (<span class="num" id="aDoneCnt">0</span>)</summary>
+      <div class="auf-list done" id="aDone"></div>
+    </details>
+  </section>
+  </div>
 </div>
+
+<dialog id="extDlg" class="dlg" aria-labelledby="extTitle">
+  <form id="extForm">
+    <h2 id="extTitle">Flat verlängern?</h2>
+    <p id="extText"></p>
+    <div class="quick" id="extQuick">
+      <button type="button" data-dauer="7d">1 Woche</button><button type="button" data-dauer="14d">2 Wochen</button><button type="button" data-dauer="1m">1 Monat</button><button type="button" data-dauer="3m">3 Monate</button>
+    </div>
+    <div class="dlg-dates">
+      <label for="extVon">Von<input id="extVon" type="date"></label>
+      <label for="extBis">Bis<input id="extBis" type="date"></label>
+      <label for="extTage">oder Tage<input id="extTage" type="number" min="1" step="1" inputmode="numeric"></label>
+    </div>
+    <div class="dlg-grid">
+      <label for="extBetrag">Betrag (€)<input id="extBetrag" type="number" min="0" step="0.01" inputmode="decimal" placeholder="optional"></label>
+      <label for="extZa">Zahlungsart<select id="extZa"></select></label>
+    </div>
+    <label class="chk" for="extPay"><input type="checkbox" id="extPay"> Zahlung gleich ins Umsatzbuch eintragen (heute, 1 Kunde)</label>
+    <p class="msg err" id="extMsg" role="status"></p>
+    <div class="dlg-btns"><button class="primary" type="submit">Verlängern</button><button type="button" id="extNur">Nur abhaken</button><button type="button" id="extAbbr">Abbrechen</button></div>
+  </form>
+</dialog>
+
+<dialog id="payDlg" class="dlg" aria-labelledby="payTitle">
+  <form id="payForm">
+    <h2 id="payTitle">Ins Umsatzbuch übernehmen</h2>
+    <p id="payText"></p>
+    <p class="hinweis" id="paySchon" hidden></p>
+    <div class="dlg-grid">
+      <label for="pDate">Datum<input id="pDate" type="date"></label>
+      <label for="pMethod">Zahlungsart<select id="pMethod"></select></label>
+      <label for="pSales">Betrag (€)<input id="pSales" type="number" min="0" step="0.01" inputmode="decimal"></label>
+      <label for="pCust">Kunden<input id="pCust" type="number" min="0" step="1" inputmode="numeric"></label>
+      <label for="pNote" class="full">Notiz<input id="pNote" type="text" placeholder="optional"></label>
+    </div>
+    <p class="msg err" id="payMsg" role="status"></p>
+    <div class="dlg-btns"><button class="primary" type="submit" id="paySave">Speichern</button><button type="button" id="payAbbr">Abbrechen</button></div>
+  </form>
+</dialog>
 
 <script src="vendor/supabase.js"></script>
 <script src="config.js"></script>

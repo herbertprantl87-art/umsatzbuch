@@ -22,7 +22,7 @@
   try{Object.keys(localStorage).forEach(function(k){if(k.indexOf('sb-')===0)localStorage.removeItem(k)})}catch(e){}
   var sb=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey,{auth:{storage:window.sessionStorage,persistSession:true}});
 
-  var state={pay:[],goals:{}},goalIds={};
+  var state={pay:[],goals:{},auf:[]},goalIds={};
   var now=new Date(),selY=now.getFullYear(),selM=now.getMonth();
   var user=null,editId=null,KEY=null,tresor=null;
 
@@ -94,7 +94,7 @@
     }
     user=u;
     if(user){touch();$('login').hidden=true;afterLogin()}
-    else{try{sessionStorage.removeItem('ub-aktiv')}catch(e){}KEY=null;tresor=null;$('app').hidden=true;$('unlock').hidden=true;$('login').hidden=false;state={pay:[],goals:{}};goalIds={}}
+    else{try{sessionStorage.removeItem('ub-aktiv')}catch(e){}KEY=null;tresor=null;$('app').hidden=true;$('unlock').hidden=true;$('login').hidden=false;state={pay:[],goals:{},auf:[]};goalIds={}}
   });
 
   async function afterLogin(){
@@ -152,7 +152,7 @@
     await loadAll();
   }
 
-  // Einträge als verschlüsselte Objekte: t:'z' Zahlung, t:'g' Monatsziel
+  // Einträge als verschlüsselte Objekte: t:'z' Zahlung, t:'g' Monatsziel, t:'a' Auftrag
   function payObj(d,m,b,k,n){return {t:'z',d:d,a:m,b:b,k:k,n:n||''}}
   function fromObj(id,o){return {id:id,date:o.d,method:o.a,amount:+o.b,cust:+o.k,note:o.n||''}}
 
@@ -160,14 +160,14 @@
     $('app').classList.add('loading');
     var a=await sb.from('eintraege').select('id,daten').order('id');
     if(a.error){$('app').classList.remove('loading');flash('Daten konnten nicht geladen werden: '+a.error.message);return}
-    var pay=[],goals={},gids={},bad=0;
+    var pay=[],goals={},gids={},auf=[],bad=0;
     for(var i=0;i<a.data.length;i++){
       var r=a.data[i];
-      try{var o=await dec(r.daten);if(o.t==='z')pay.push(fromObj(r.id,o));else if(o.t==='g'){goals[o.m]=+o.z;gids[o.m]=r.id}}catch(e){bad++}
+      try{var o=await dec(r.daten);if(o.t==='z')pay.push(fromObj(r.id,o));else if(o.t==='g'){goals[o.m]=+o.z;gids[o.m]=r.id}else if(o.t==='a')auf.push(fromAuf(r.id,o))}catch(e){bad++}
     }
-    state.pay=pay;state.goals=goals;goalIds=gids;
+    state.pay=pay;state.goals=goals;goalIds=gids;state.auf=auf;
     $('app').classList.remove('loading');
-    render();
+    render();renderAuf();
     if(bad)flash(bad+' Einträge konnten nicht entschlüsselt werden.');
   }
 
@@ -187,16 +187,29 @@
     flash(rows.length+' bisherige Einträge wurden verschlüsselt.');
   }
 
-  // Sicherung als CSV (entschlüsselt, nur auf diesem Gerät)
-  $('btnExport').addEventListener('click',function(){
-    var lines=['Datum;Zahlungsart;Betrag;Kunden;Notiz'];
-    state.pay.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.id-b.id}).forEach(function(p){
-      lines.push([fmtDate(p.date),p.method,p.amount.toFixed(2).replace('.',','),p.cust,'"'+String(p.note).replace(/"/g,'""')+'"'].join(';'));
-    });
+  // Sicherung als CSV (entschlüsselt, nur auf diesem Gerät). In der Ansicht Aufträge: die Aufträge.
+  function q(s){return '"'+String(s).replace(/"/g,'""')+'"'}
+  function saveCsv(lines,name){
     var blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
     var a=document.createElement('a');a.href=URL.createObjectURL(blob);
-    a.download='umsatzbuch-sicherung-'+iso(now.getFullYear(),now.getMonth(),now.getDate())+'.csv';
+    a.download=name+'-'+iso(now.getFullYear(),now.getMonth(),now.getDate())+'.csv';
     document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+  }
+  $('btnExport').addEventListener('click',function(){
+    if(!$('viewAuftraege').hidden){
+      var al=['Art;Telegram;Von;Bis;Was;Betrag;Zahlungsart;Im Umsatzbuch am;Status;Erledigt am'];
+      state.auf.slice().sort(function(a,b){return a.id-b.id}).forEach(function(x){
+        al.push([ARTEN[x.art],q(x.tg.replace(/^@/,'')),x.von?fmtDate(x.von):'',x.bis?fmtDate(x.bis):'',q(x.note),x.betrag!=null?x.betrag.toFixed(2).replace('.',','):'',x.za,uebernommen(x).map(function(p){return fmtDate(p.date)}).join(' '),x.ok?'erledigt':'offen',x.okAm?fmtDate(x.okAm):''].join(';'));
+      });
+      saveCsv(al,'auftraege-sicherung');
+      flash('Sicherung mit '+state.auf.length+' Aufträgen heruntergeladen. Bitte sicher aufbewahren, die Datei ist nicht verschlüsselt.',$('aMsg'));
+      return;
+    }
+    var lines=['Datum;Zahlungsart;Betrag;Kunden;Notiz'];
+    state.pay.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.id-b.id}).forEach(function(p){
+      lines.push([fmtDate(p.date),p.method,p.amount.toFixed(2).replace('.',','),p.cust,q(p.note)].join(';'));
+    });
+    saveCsv(lines,'umsatzbuch-sicherung');
     flash('Sicherung mit '+state.pay.length+' Zahlungen heruntergeladen. Bitte sicher aufbewahren, die Datei ist nicht verschlüsselt.');
   });
 
@@ -325,7 +338,7 @@
         if(r2.error){flash('Löschen fehlgeschlagen: '+r2.error.message);return}
         state.pay=state.pay.filter(function(x){return x.id!==id});
         if(editId===id)resetForm();
-        render();flash('Zahlung gelöscht.');
+        render();renderAuf();flash('Zahlung gelöscht.');
       } else {pendingDel=id;b.textContent='Wirklich löschen?';b.style.color='var(--warn)'}
     }
   });
@@ -344,7 +357,7 @@
     var row=fromObj(r.data.id,o),was=editId;
     if(was)state.pay=state.pay.map(function(x){return x.id===was?row:x});else state.pay.push(row);
     var dd=parseIso(d);selY=dd.getFullYear();selM=dd.getMonth();$('selMonth').value=selM;$('selYear').value=selY;
-    resetForm();render();
+    resetForm();render();renderAuf();
     flash((was?'Geändert: ':'Gespeichert: ')+fmtDate(d)+', '+m+', '+eur.format(s)+'.');
   });
 
@@ -357,6 +370,286 @@
     if(r.error){flash('Ziel konnte nicht gespeichert werden: '+r.error.message);return}
     goalIds[k]=r.data.id;state.goals[k]=v;render();
   });
+
+  // ---------- Aufträge (t:'a'): Flat, Bestellung versenden, Sonstiges ----------
+  var ARTEN={flat:'Flat',versand:'Bestellung versenden',sonst:'Sonstiges'};
+  var aEditId=null,aPendingDel=null;
+  // Betrag (b), Zahlungsart (za) und die ids der schon übernommenen Zahlungen (zids) sind freiwillig
+  function fromAuf(id,o){return {id:id,art:ARTEN[o.art]?o.art:'sonst',tg:o.tg||'',von:o.von||'',bis:o.bis||'',note:o.n||'',ok:!!o.ok,okAm:o.okAm||'',
+    betrag:o.b===undefined||o.b===null||o.b===''||isNaN(+o.b)?null:+o.b,za:METHODS.indexOf(o.za)>-1?o.za:'',zids:Array.isArray(o.zids)?o.zids.map(Number):[]}}
+  function aufObj(a){return {t:'a',art:a.art,tg:a.tg,von:a.von,bis:a.bis,n:a.note,ok:a.ok?1:0,okAm:a.okAm||'',b:a.betrag==null?'':a.betrag,za:a.za||'',zids:a.zids||[]}}
+  // Betragsfeld lesen: leer = null, ungültig = NaN, sonst auf Cent gerundet
+  function betragIn(v){v=String(v==null?'':v).trim().replace(',','.');if(v==='')return null;var n=parseFloat(v);return isNaN(n)||n<0?NaN:Math.round(n*100)/100}
+  // Zahlungen im Umsatzbuch, die aus diesem Auftrag übernommen wurden (gelöschte fallen weg)
+  function uebernommen(a){return (a.zids||[]).map(byId).filter(Boolean)}
+  function fillMethods(sel,leer){
+    if(leer){var o0=document.createElement('option');o0.value='';o0.textContent=leer;sel.appendChild(o0)}
+    METHODS.forEach(function(m){var o=document.createElement('option');o.value=m;o.textContent=m;sel.appendChild(o)});
+  }
+  fillMethods($('aZa'),'später wählen');fillMethods($('extZa'),'später wählen');fillMethods($('pMethod'),'bitte wählen');
+  function aById(id){for(var i=0;i<state.auf.length;i++)if(state.auf[i].id===id)return state.auf[i];return null}
+  function heuteIso(){var h=new Date();return iso(h.getFullYear(),h.getMonth(),h.getDate())}
+  function tageBis(s){return Math.round((parseIso(s)-parseIso(heuteIso()))/86400000)}
+  function tage(n){return n===1?'1 Tag':n+' Tagen'}
+  function plusTage(s,n){var d=parseIso(s);d.setDate(d.getDate()+n);return iso(d.getFullYear(),d.getMonth(),d.getDate())}
+  // 1 Monat = bis zum Vortag desselben Tages im nächsten Monat (1.12. -> 31.12., 15.11. -> 14.12.)
+  function bisNachMonaten(von,k){
+    var d=parseIso(von),t=new Date(d.getFullYear(),d.getMonth()+k,d.getDate());
+    if(t.getDate()!==d.getDate())t=new Date(d.getFullYear(),d.getMonth()+k+1,1); // z. B. 31.1. + 1 Monat
+    t.setDate(t.getDate()-1);return iso(t.getFullYear(),t.getMonth(),t.getDate());
+  }
+  function bisFuer(von,dauer){var m=/^(\d+)([dm])$/.exec(dauer||'');if(!m||!von)return '';return m[2]==='m'?bisNachMonaten(von,+m[1]):plusTage(von,+m[1]-1)}
+  // Dauer-Knöpfe (1 Woche, 1 Monat ...) und Tage-Feld setzen das Bis-Datum ab Von
+  function dauerWahl(chips,von,bis,tageFeld){
+    var wahl='';
+    function knoepfe(){chips.querySelectorAll('[data-dauer]').forEach(function(b){b.classList.toggle('on',b.dataset.dauer===wahl)})}
+    function zeige(){knoepfe();tageFeld.value=(von.value&&bis.value&&bis.value>=von.value)?Math.round((parseIso(bis.value)-parseIso(von.value))/86400000)+1:''}
+    function setze(d){wahl=d;if(von.value)bis.value=bisFuer(von.value,d);zeige()}
+    chips.addEventListener('click',function(e){var b=e.target.closest('[data-dauer]');if(b)setze(b.dataset.dauer)});
+    ['input','change'].forEach(function(ev){
+      von.addEventListener(ev,function(){if(wahl&&von.value)bis.value=bisFuer(von.value,wahl);zeige()});
+      bis.addEventListener(ev,function(){wahl='';zeige()});
+      tageFeld.addEventListener(ev,function(){var n=parseInt(tageFeld.value,10);wahl='';knoepfe();if(n>0&&von.value)bis.value=plusTage(von.value,n-1)});
+    });
+    return {setze:setze,leer:function(){wahl='';zeige()}};
+  }
+  var aDauer=dauerWahl($('aQuick'),$('aVon'),$('aBis'),$('aTage'));
+  var extDauer=dauerWahl($('extQuick'),$('extVon'),$('extBis'),$('extTage'));
+
+  // Ampel: rot = abgelaufen/überfällig, gelb = bald fällig, grün = Flat läuft
+  function aufStatus(a){
+    if(a.art==='flat'){
+      if(a.von&&tageBis(a.von)>0){var v=tageBis(a.von);return {cls:'',txt:'beginnt '+(v===1?'morgen':'in '+tage(v))}}
+      if(!a.bis)return {cls:'',txt:''};
+      var d=tageBis(a.bis);
+      if(d<0)return {cls:'red',txt:'abgelaufen seit '+(d===-1?'gestern':tage(-d))};
+      if(d===0)return {cls:'gold',txt:'endet heute'};
+      if(d<=3)return {cls:'gold',txt:'endet '+(d===1?'morgen':'in '+tage(d))};
+      return {cls:'ok',txt:'läuft noch '+(d+1)+' Tage'};
+    }
+    if(!a.bis)return {cls:'',txt:''};
+    var e=tageBis(a.bis);
+    if(e<0)return {cls:'red',txt:'überfällig seit '+(e===-1?'gestern':tage(-e))};
+    if(e===0)return {cls:'gold',txt:'heute fällig'};
+    if(e===1)return {cls:'gold',txt:'morgen fällig'};
+    return {cls:'',txt:'fällig in '+tage(e)};
+  }
+  function tgHtml(tg){
+    var n=String(tg||'').trim().replace(/^@/,'');
+    if(!n)return '';
+    if(/^[A-Za-z0-9_]{4,32}$/.test(n))return '<a href="https://t.me/'+n+'" target="_blank" rel="noopener noreferrer">@'+n+'</a>';
+    return '<span>'+esc(tg)+'</span>';
+  }
+  function zeitraum(a){
+    if(a.art==='flat'){
+      if(a.von&&a.bis)return (a.von.slice(0,4)===a.bis.slice(0,4)?fmtDate(a.von).slice(0,6):fmtDate(a.von))+' – '+fmtDate(a.bis);
+      if(a.bis)return 'bis '+fmtDate(a.bis);
+      return a.von?'ab '+fmtDate(a.von):'';
+    }
+    return a.bis?(a.art==='versand'?'versenden bis ':'fällig am ')+fmtDate(a.bis):'';
+  }
+  function aufCard(a){
+    var s=a.ok?{cls:'',txt:''}:aufStatus(a),z=zeitraum(a),teile=[];
+    if(z)teile.push(esc(z));
+    if(s.txt)teile.push('<b class="st-'+s.cls+'">'+esc(s.txt)+'</b>');
+    if(a.ok&&a.okAm)teile.push('erledigt am '+fmtDate(a.okAm));
+    return '<div class="auf'+(s.cls?' st-'+s.cls:'')+'">'+
+      '<input type="checkbox" class="auf-chk" data-tick="'+a.id+'"'+(a.ok?' checked':'')+' aria-label="'+esc((a.ok?'Wieder offen: ':'Erledigt: ')+ARTEN[a.art]+' '+a.tg)+'">'+
+      '<div class="auf-main"><div class="auf-top"><span class="badge">'+ARTEN[a.art]+'</span>'+tgHtml(a.tg)+'</div>'+
+      (teile.length?'<div class="auf-when">'+teile.join(' · ')+'</div>':'')+
+      aufGeld(a)+
+      (a.note?'<div class="auf-note">'+esc(a.note)+'</div>':'')+'</div>'+
+      '<div class="auf-act">'+(a.betrag!=null?'<button type="button" class="link" data-apay="'+a.id+'">Ins Umsatzbuch</button>':'')+
+      '<button type="button" class="link" data-aedit="'+a.id+'">Ändern</button><button type="button" class="link" data-adel="'+a.id+'">Löschen</button></div></div>';
+  }
+  // Zeile "50,00 € · Paysafe · im Umsatzbuch am 26.11."
+  function aufGeld(a){
+    var ub=uebernommen(a),t=[];
+    if(a.betrag!=null)t.push('<b class="num">'+eur.format(a.betrag)+'</b>');
+    if(a.za)t.push(esc(a.za));
+    if(ub.length)t.push('<span class="ub">im Umsatzbuch am '+ub.map(function(p){return fmtDate(p.date).slice(0,6)}).join(', ')+'</span>');
+    return t.length?'<div class="auf-geld">'+t.join(' · ')+'</div>':'';
+  }
+  function renderAuf(){
+    // Offene nach Fälligkeit (ohne Datum ans Ende), Erledigte: zuletzt abgehakte oben
+    var open=state.auf.filter(function(a){return !a.ok}).sort(function(x,y){var a=x.bis||'9999',b=y.bis||'9999';return a<b?-1:a>b?1:x.id-y.id});
+    var done=state.auf.filter(function(a){return a.ok}).sort(function(x,y){return x.okAm<y.okAm?1:x.okAm>y.okAm?-1:y.id-x.id});
+    aPendingDel=null;
+    $('aOpen').innerHTML=open.length?open.map(aufCard).join(''):'<div class="empty">Nichts zu erledigen.</div>';
+    $('aDone').innerHTML=done.length?done.map(aufCard).join(''):'<div class="empty">Noch nichts erledigt.</div>';
+    $('aDoneCnt').textContent=done.length;
+    $('aOpenCnt').textContent=open.length;
+    var rot=0,gelb=0;open.forEach(function(a){var c=aufStatus(a).cls;if(c==='red')rot++;else if(c==='gold')gelb++});
+    var t=[];if(rot)t.push(rot+' abgelaufen oder überfällig');if(gelb)t.push(gelb+' bald fällig');
+    $('aOpenSub').textContent=t.length?t.join(' · '):(open.length?'Nichts dringend.':'');
+    $('selView').options[1].textContent='Aufträge'+(open.length?' ('+open.length+')':'');
+  }
+
+  function aFormArt(){
+    var art=$('aArt').value;
+    $('aVonWrap').hidden=art!=='flat';$('aQuick').hidden=art!=='flat';
+    $('aBisLabel').textContent=art==='flat'?'Bis':art==='versand'?'Versenden bis':'Fällig am';
+    $('aTg').required=art!=='sonst';
+    $('aVon').required=art==='flat';$('aBis').required=art==='flat';
+  }
+  function aReset(){
+    aEditId=null;$('aTg').value='';$('aVon').value=heuteIso();$('aBis').value='';$('aNote').value='';$('aBetrag').value='';$('aZa').value='';
+    $('aSave').textContent='Speichern';$('aCancel').hidden=true;aFormArt();aDauer.leer();
+  }
+  async function aSpeichern(a){
+    var daten=await enc(aufObj(a));
+    var r=a.id
+      ? await sb.from('eintraege').update({daten:daten}).eq('user_id',user.id).eq('id',a.id).select('id').single()
+      : await sb.from('eintraege').insert({user_id:user.id,daten:daten}).select('id').single();
+    if(r.error){flash('Speichern fehlgeschlagen: '+r.error.message,$('aMsg'));return false}
+    if(a.id)state.auf=state.auf.map(function(x){return x.id===a.id?a:x});else{a.id=r.data.id;state.auf.push(a)}
+    return true;
+  }
+  $('aArt').addEventListener('change',aFormArt);
+  $('aCancel').addEventListener('click',aReset);
+  $('aForm').addEventListener('submit',async function(e){
+    e.preventDefault();
+    var art=$('aArt').value,tg=$('aTg').value.trim(),von=art==='flat'?$('aVon').value:'',bis=$('aBis').value,n=$('aNote').value.trim();
+    if(!ARTEN[art])return;
+    if(art!=='sonst'&&!tg){flash('Bitte den Telegram-Namen eintragen.',$('aMsg'));return}
+    if(art==='flat'&&(!von||!bis)){flash('Bitte bei der Flat Von und Bis eintragen.',$('aMsg'));return}
+    if(art==='flat'&&bis<von){flash('Das Ende liegt vor dem Beginn.',$('aMsg'));return}
+    if(art==='sonst'&&!tg&&!n){flash('Bitte eintragen, was zu tun ist.',$('aMsg'));return}
+    var betrag=betragIn($('aBetrag').value);
+    if(isNaN(betrag)){flash('Der Betrag stimmt nicht.',$('aMsg'));return}
+    var alt=aEditId?aById(aEditId):null;
+    var a={id:alt?alt.id:null,art:art,tg:tg,von:von,bis:bis,note:n,ok:alt?alt.ok:false,okAm:alt?alt.okAm:'',betrag:betrag,za:$('aZa').value,zids:alt?alt.zids:[]};
+    if(!(await aSpeichern(a)))return;
+    aReset();renderAuf();
+    flash((alt?'Geändert: ':'Gespeichert: ')+ARTEN[art]+(tg?' '+tg:'')+'.',$('aMsg'));
+  });
+  // Abhaken: rutscht nach unten zu "Erledigt"; dort wieder entfernen = wieder offen.
+  // Bei einer Flat fragt erst ein Fenster, ob sie verlängert wird.
+  async function abhaken(a,ok,c,still){
+    var neu=Object.assign({},a,{ok:ok,okAm:ok?heuteIso():''});
+    if(c)c.disabled=true;
+    if(!(await aSpeichern(neu))){if(c){c.checked=!ok;c.disabled=false}return false}
+    if(aEditId===a.id)aReset();
+    renderAuf();
+    if(!still)flash((ok?'Erledigt: ':'Wieder offen: ')+ARTEN[a.art]+(a.tg?' '+a.tg:'')+'.',$('aMsg'));
+    return true;
+  }
+  $('viewAuftraege').addEventListener('change',async function(e){
+    var c=e.target;if(!c.dataset||!c.dataset.tick)return;
+    var a=aById(+c.dataset.tick);if(!a)return;
+    if(c.checked&&a.art==='flat'){extOeffnen(a,c);return}
+    await abhaken(a,c.checked,c);
+  });
+
+  // Verlängern-Fenster: neue Flat schließt an die alte an (oder ab heute, wenn sie schon abgelaufen ist)
+  var ext=null;
+  function extOeffnen(a,c){
+    ext={a:a,c:c};
+    var start=a.bis?plusTage(a.bis,1):heuteIso();if(start<heuteIso())start=heuteIso();
+    $('extText').textContent=(a.tg||'Flat')+(zeitraum(a)?' · bisher '+zeitraum(a):'');
+    $('extVon').value=start;$('extBis').value='';$('extMsg').textContent='';
+    $('extBetrag').value=a.betrag!=null?a.betrag:'';$('extZa').value=a.za||'';$('extPay').checked=false;
+    extDauer.setze('1m');
+    $('extDlg').showModal();
+  }
+  function extZu(){var e=ext;ext=null;if($('extDlg').open)$('extDlg').close();return e}
+  $('extAbbr').addEventListener('click',function(){var e=extZu();if(e)e.c.checked=false});
+  $('extDlg').addEventListener('cancel',function(){if(ext){ext.c.checked=false;ext=null}});
+  $('extNur').addEventListener('click',async function(){var e=extZu();if(e)await abhaken(e.a,true,e.c)});
+  $('extForm').addEventListener('submit',async function(ev){
+    ev.preventDefault();if(!ext)return;
+    var von=$('extVon').value,bis=$('extBis').value;
+    if(!von||!bis){$('extMsg').textContent='Bitte Von und Bis wählen.';return}
+    if(bis<von){$('extMsg').textContent='Das Ende liegt vor dem Beginn.';return}
+    var betrag=betragIn($('extBetrag').value),za=$('extZa').value,mitZahlung=$('extPay').checked;
+    if(isNaN(betrag)){$('extMsg').textContent='Der Betrag stimmt nicht.';return}
+    if(mitZahlung&&betrag==null){$('extMsg').textContent='Für die Zahlung bitte den Betrag eintragen.';return}
+    if(mitZahlung&&!za){$('extMsg').textContent='Für die Zahlung bitte die Zahlungsart wählen.';return}
+    var e=extZu();
+    if(!(await abhaken(e.a,true,e.c,true)))return;
+    var neu={id:null,art:'flat',tg:e.a.tg,von:von,bis:bis,note:e.a.note,ok:false,okAm:'',betrag:betrag,za:za,zids:[]};
+    // Häkchen gesetzt: Zahlung heute mit 1 Kunde eintragen und im neuen Auftrag merken
+    var pid=null;
+    if(mitZahlung){pid=await zahlungNeu(payObj(heuteIso(),za,betrag,1,zahlNotiz(neu)));if(pid!=null)neu.zids=[pid]}
+    if(!(await aSpeichern(neu))){renderAuf();return}
+    renderAuf();
+    var t='Verlängert: '+(e.a.tg||'Flat')+' '+zeitraum(neu)+'.';
+    if(mitZahlung)t+=pid!=null?' '+eur.format(betrag)+' ist im Umsatzbuch.':' Die Zahlung konnte aber nicht gespeichert werden.';
+    flash(t,$('aMsg'));
+  });
+
+  // Ins Umsatzbuch übernehmen: kleines Fenster, alles vorausgefüllt und änderbar.
+  // Der Auftrag merkt sich die Zahlung (zids); nochmal übernehmen geht, mit Hinweis.
+  function zahlNotiz(a){return ARTEN[a.art]+(a.tg?' '+a.tg:'')+(a.art==='flat'&&zeitraum(a)?' '+zeitraum(a):'')}
+  async function zahlungNeu(o,msgEl){
+    var r=await sb.from('eintraege').insert({user_id:user.id,daten:await enc(o)}).select('id').single();
+    if(r.error){flash('Zahlung nicht gespeichert: '+r.error.message,msgEl||$('aMsg'));return null}
+    state.pay.push(fromObj(r.data.id,o));
+    var dd=parseIso(o.d);selY=dd.getFullYear();selM=dd.getMonth();$('selMonth').value=selM;$('selYear').value=selY;
+    render();return r.data.id;
+  }
+  var payA=null;
+  function payOeffnen(a){
+    payA=a;var ub=uebernommen(a);
+    $('payText').textContent=ARTEN[a.art]+(a.tg?' '+a.tg:'')+(zeitraum(a)?' · '+zeitraum(a):'');
+    $('paySchon').hidden=!ub.length;
+    $('paySchon').textContent=ub.length?'Schon übernommen: '+ub.map(function(p){return fmtDate(p.date)+' ('+eur.format(p.amount)+')'}).join(', ')+'. Speichern trägt die Zahlung noch einmal ein.':'';
+    $('pDate').value=heuteIso();$('pMethod').value=a.za||'';$('pSales').value=a.betrag!=null?a.betrag:'';
+    $('pCust').value='1';$('pNote').value=zahlNotiz(a);$('payMsg').textContent='';$('paySave').disabled=false;
+    $('payDlg').showModal();
+  }
+  function payZu(){payA=null;if($('payDlg').open)$('payDlg').close()}
+  $('payAbbr').addEventListener('click',payZu);
+  $('payDlg').addEventListener('cancel',function(){payA=null});
+  $('payForm').addEventListener('submit',async function(ev){
+    ev.preventDefault();if(!payA)return;
+    var d=$('pDate').value,m=$('pMethod').value,s=betragIn($('pSales').value),c=parseInt($('pCust').value,10);
+    if(!d||METHODS.indexOf(m)<0||s==null||isNaN(s)||isNaN(c)||c<0){$('payMsg').textContent='Bitte Datum, Zahlungsart, Betrag und Kunden ausfüllen.';return}
+    $('paySave').disabled=true;
+    var o=payObj(d,m,s,c,$('pNote').value.trim());
+    var id=await zahlungNeu(o,$('payMsg'));
+    if(id==null){$('paySave').disabled=false;return}
+    var a=aById(payA.id)||payA;payZu();
+    var neu=Object.assign({},a,{zids:(a.zids||[]).concat(id)});
+    if(!(await aSpeichern(neu))){renderAuf();flash('Zahlung ist im Umsatzbuch, aber der Auftrag konnte sich das nicht merken.',$('aMsg'));return}
+    renderAuf();
+    flash('Ins Umsatzbuch übernommen: '+fmtDate(d)+', '+m+', '+eur.format(s)+'.',$('aMsg'));
+  });
+  $('viewAuftraege').addEventListener('click',async function(e){
+    var b=e.target.closest('button[data-aedit],button[data-adel],button[data-apay]');if(!b)return;
+    if(b.dataset.apay){var ap=aById(+b.dataset.apay);if(ap)payOeffnen(ap);return}
+    if(b.dataset.aedit){
+      var a=aById(+b.dataset.aedit);if(!a)return;
+      aEditId=a.id;$('aArt').value=a.art;aFormArt();
+      $('aTg').value=a.tg;$('aVon').value=a.von;$('aBis').value=a.bis;$('aNote').value=a.note;aDauer.leer();
+      $('aBetrag').value=a.betrag!=null?a.betrag:'';$('aZa').value=a.za;
+      $('aSave').textContent='Änderung speichern';$('aCancel').hidden=false;
+      $('aTg').focus();window.scrollTo({top:$('aForm').offsetTop-80,behavior:'smooth'});
+      return;
+    }
+    var id=+b.dataset.adel;
+    if(aPendingDel===id){
+      aPendingDel=null;
+      var r=await sb.from('eintraege').delete().eq('user_id',user.id).eq('id',id);
+      if(r.error){flash('Löschen fehlgeschlagen: '+r.error.message,$('aMsg'));return}
+      state.auf=state.auf.filter(function(x){return x.id!==id});
+      if(aEditId===id)aReset();
+      renderAuf();flash('Auftrag gelöscht.',$('aMsg'));
+    } else {aPendingDel=id;b.textContent='Wirklich löschen?';b.style.color='var(--warn)'}
+  });
+
+  // Umschalten oben links: Umsatzbuch / Aufträge (Auswahl bleibt für diesen Tab)
+  function setView(v){
+    if(v!=='auftraege')v='umsatz';
+    $('selView').value=v;
+    $('viewUmsatz').hidden=v!=='umsatz';$('viewAuftraege').hidden=v!=='auftraege';$('monthCtl').hidden=v!=='umsatz';
+    $('viewSub').textContent=v==='umsatz'?'Zahlungen eintragen, Monat auf einen Blick.':'Flats, Bestellungen und Erinnerungen. Abhaken, wenn erledigt.';
+    document.title=v==='umsatz'?'Umsatzbuch':'Aufträge';
+    try{sessionStorage.setItem('ub-ansicht',v)}catch(e){}
+  }
+  $('selView').addEventListener('change',function(){setView(this.value);window.scrollTo(0,0)});
+  var startView='umsatz';try{startView=sessionStorage.getItem('ub-ansicht')||'umsatz'}catch(e){}
+  setView(startView);aReset();renderAuf();
 
   // Nachtragen: Excel-Zeilen (Datum, Zahlungsart, Betrag, Kunden) oder Notizen wie
   //   Überweisung Gesamt: 40,00€ / Amazon Gesamt: 25€ / 03.02.26 Tagesumsatz: 65,00€
