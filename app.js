@@ -467,11 +467,17 @@
       '<div class="auf-main"><div class="auf-top"><span class="badge">'+ARTEN[a.art]+'</span>'+(a.name?'<span>'+esc(a.name)+'</span>':'')+tgHtml(a.tg)+'</div>'+
       (teile.length?'<div class="auf-when">'+teile.join(' · ')+'</div>':'')+
       aufGeld(a)+
-      (a.adr?'<div class="auf-adr">'+esc(a.adr)+'</div>':'')+
-      (a.note?'<div class="auf-note">'+esc(a.note)+'</div>':'')+'</div>'+
+      aufSpalten(a)+'</div>'+
       '<div class="auf-act">'+(a.betrag!=null?'<button type="button" class="link" data-apay="'+a.id+'">Ins Umsatzbuch</button>':'')+
       (a.adr?'<button type="button" class="link" data-acopy="'+a.id+'">Adresse kopieren</button>':'')+
       '<button type="button" class="link" data-aedit="'+a.id+'">Ändern</button><button type="button" class="link" data-adel="'+a.id+'">Löschen</button></div></div>';
+  }
+  // Adresse und "Zu tun" als zwei Spalten nebeneinander (am Handy untereinander, CSS .auf-cols)
+  function aufSpalten(a){
+    var sp='';
+    if(a.adr)sp+='<div class="auf-col"><div class="auf-h">Adresse</div><div class="auf-adr">'+esc(a.adr)+'</div></div>';
+    if(a.note)sp+='<div class="auf-col"><div class="auf-h">Zu tun</div><div class="auf-note">'+esc(a.note)+'</div></div>';
+    return sp?'<div class="auf-cols">'+sp+'</div>':'';
   }
   // Zeile "50,00 € · Paysafe · im Umsatzbuch am 26.11."
   function aufGeld(a){

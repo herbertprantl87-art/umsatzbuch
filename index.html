@@ -209,6 +209,11 @@ dialog.dlg::backdrop{background:rgba(0,0,0,.65)}
 #aForm textarea{width:100%;min-width:0;resize:vertical;min-height:44px}
 .auf-adr{font-size:.92rem;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--fg)}
 @media (max-width:860px){#aForm label[for="aAdr"]{grid-column:1/-1}}
+/* Adresse und Zu tun nebeneinander, am Handy untereinander */
+.auf-cols{display:flex;gap:6px 28px;margin-top:6px}
+.auf-col{flex:1 1 0;min-width:0}
+.auf-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600;color:var(--muted);margin-bottom:2px}
+@media (max-width:640px){.auf-cols{flex-direction:column}}
 </style>
 </head>
 <body>
