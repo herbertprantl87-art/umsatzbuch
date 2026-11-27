@@ -214,6 +214,10 @@ dialog.dlg::backdrop{background:rgba(0,0,0,.65)}
 .auf-col{flex:1 1 0;min-width:0}
 .auf-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600;color:var(--muted);margin-bottom:2px}
 @media (max-width:640px){.auf-cols{flex-direction:column}}
+/* Anteil Walter (ab 01.12.2026) */
+.walter{font-size:.8rem;font-weight:500;font-family:var(--f-body,inherit);color:var(--gold)}
+.walter:empty,.walter-hint:empty{display:none}
+.walter-hint{margin-top:8px;font-size:.92rem;font-weight:600;color:var(--gold)}
 </style>
 </head>
 <body>
@@ -274,6 +278,7 @@ dialog.dlg::backdrop{background:rgba(0,0,0,.65)}
       <label for="fNote">Notiz<input id="fNote" type="text" placeholder="optional"></label>
       <div class="form-btns"><button class="primary" type="submit" id="btnSave">Speichern</button><button type="button" id="btnCancel" hidden>Abbrechen</button></div>
     </form>
+    <div class="walter-hint num" id="fWalter" aria-live="polite"></div>
     <div class="msg" id="msg" role="status"></div>
     <details>
       <summary>Mehrere Zahlungen nachtragen</summary>
@@ -291,7 +296,7 @@ Amazon Gesamt: 25€
   </section>
 
   <section class="kpis" aria-label="Kennzahlen">
-    <div class="kpi"><div class="label">Umsatz im Monat</div><div class="value num" id="kSales">0</div><div class="sub num" id="kSalesCmp"></div></div>
+    <div class="kpi"><div class="label">Umsatz im Monat</div><div class="value num" id="kSales">0</div><div class="sub num" id="kSalesCmp"></div><div class="sub num walter" id="kWalter"></div></div>
     <div class="kpi"><div class="label">Kunden im Monat</div><div class="value num" id="kCust">0</div><div class="sub num" id="kCustCmp"></div></div>
     <div class="kpi"><div class="label">Ø Umsatz pro Kunde</div><div class="value num" id="kBasket">0</div><div class="sub num" id="kBasketCmp"></div></div>
     <div class="kpi"><div class="label">Ø Umsatz pro Arbeitstag</div><div class="value num" id="kDay">0</div><div class="sub num" id="kDayCnt"></div></div>
@@ -413,6 +418,7 @@ Amazon Gesamt: 25€
       <label for="pCust">Kunden<input id="pCust" type="number" min="0" step="1" inputmode="numeric"></label>
       <label for="pNote" class="full">Notiz<input id="pNote" type="text" placeholder="optional"></label>
     </div>
+    <div class="walter-hint num" id="pWalter" aria-live="polite"></div>
     <p class="msg err" id="payMsg" role="status"></p>
     <div class="dlg-btns"><button class="primary" type="submit" id="paySave">Speichern</button><button type="button" id="payAbbr">Abbrechen</button></div>
   </form>

@@ -222,8 +222,10 @@
   $('selYear').onchange=function(){selY=+this.value;render()};
   function resetForm(){
     editId=null;$('fSales').value='';$('fCust').value='1';$('fNote').value='';
-    $('btnSave').textContent='Speichern';$('btnCancel').hidden=true;
+    $('btnSave').textContent='Speichern';$('btnCancel').hidden=true;walterForm();
   }
+  ['fDate','fSales','fCust'].forEach(function(id){$(id).addEventListener('input',walterForm);$(id).addEventListener('change',walterForm)});
+  ['pDate','pSales','pCust'].forEach(function(id){$(id).addEventListener('input',walterPay);$(id).addEventListener('change',walterPay)});
   $('fDate').value=iso(now.getFullYear(),now.getMonth(),now.getDate());
   $('fDate').addEventListener('input',showDay);
   $('fDate').addEventListener('change',showDay);
@@ -238,6 +240,23 @@
     var n=Object.keys(days).length;
     return {sales:s,cust:c,days:n,basket:c?s/c:0,perDay:n?s/n:0};
   }
+  // Anteil Walter (ab 01.12.2026): ein Viertel je Kunde, auf ganze Euro gerundet, bei genau ,50 abgerundet.
+  // Beispiele: 15 € -> 4, 20 -> 5, 25 -> 6, 30 -> 7, 35 -> 9, 40 -> 10, 50 -> 12, 60 -> 15, 100 -> 25.
+  // Hat eine Zahlung mehrere Kunden, wird mit dem Betrag je Kunde gerechnet (40 € mit 2 Kunden = 2 x 5 €).
+  var WALTER_AB='2026-12-01';
+  function viertel(b){var c=Math.round(b*100);return Math.max(0,Math.ceil(c/400-0.5))}
+  function walter(d,b,k){
+    if(!d||d<WALTER_AB||!(b>0))return 0;
+    k=k>0?k:1;return k*viertel(b/k);
+  }
+  function walterSumme(rows){var w=0;rows.forEach(function(r){w+=walter(r.date,r.amount,r.cust)});return w}
+  // Hinweis unter dem Eingabefeld: "Anteil Walter 15,00 € · bleibt 45,00 €"
+  function walterHinweis(el,d,b,k){
+    var s=betragIn(b),w=s>0?walter(d,s,parseInt(k,10)):0;
+    el.textContent=w?'Anteil Walter '+eur.format(w)+' · bleibt '+eur.format(s-w):'';
+  }
+  function walterForm(){walterHinweis($('fWalter'),$('fDate').value,$('fSales').value,$('fCust').value)}
+  function walterPay(){walterHinweis($('pWalter'),$('pDate').value,$('pSales').value,$('pCust').value)}
   function cmp(cur,prev,fmt){
     if(!prev) return 'Vormonat: keine Daten';
     var p=(cur-prev)/prev*100;
@@ -269,6 +288,8 @@
     $('kBasket').textContent=eur.format(t.basket);
     $('kDay').textContent=eur.format(t.perDay);
     $('kSalesCmp').innerHTML=cmp(t.sales,pt.sales,function(v){return eur0.format(v)});
+    var tw=walterSumme(rows);
+    $('kWalter').textContent=tw?'Anteil Walter '+eur.format(tw)+' · bleibt '+eur.format(t.sales-tw):'';
     $('kCustCmp').innerHTML=cmp(t.cust,pt.cust,function(v){return int.format(v)});
     $('kBasketCmp').innerHTML=cmp(t.basket,pt.basket,function(v){return eur.format(v)});
     $('kDayCnt').textContent=t.days+(t.days===1?' Tag':' Tage')+' mit Umsatz';
@@ -312,9 +333,9 @@
     if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="empty">Für '+MONTHS[selM]+' '+selY+' ist noch nichts eingetragen. Oben einfach die erste Zahlung speichern.</td></tr>';}
     else{
       tb.innerHTML=rows.map(function(r){
-        var d=parseIso(r.date);
-        return '<tr><td class="c-date num">'+fmtDate(r.date)+'</td><td class="c-day">'+WD[d.getDay()]+'</td><td class="c-method">'+esc(r.method)+'</td><td class="r num c-amount">'+eur.format(r.amount)+'</td><td class="r num c-cust">'+r.cust+(r.cust===1?' Kunde':' Kunden')+'</td><td class="c-note">'+esc(r.note)+'</td><td class="r c-act"><button type="button" class="link" data-edit="'+r.id+'">Ändern</button><button type="button" class="link" data-del="'+r.id+'">Löschen</button></td></tr>';
-      }).join('')+'<tr class="sum"><td colspan="3" class="c-date">Summe '+MONTHS[selM]+'</td><td class="r num c-amount">'+eur.format(t.sales)+'</td><td class="r num c-cust">'+int.format(t.cust)+' Kunden</td><td colspan="2" class="c-act"></td></tr>';
+        var d=parseIso(r.date),w=walter(r.date,r.amount,r.cust);
+        return '<tr><td class="c-date num">'+fmtDate(r.date)+'</td><td class="c-day">'+WD[d.getDay()]+'</td><td class="c-method">'+esc(r.method)+'</td><td class="r num c-amount">'+eur.format(r.amount)+(w?'<div class="walter">Anteil Walter '+eur.format(w)+'</div>':'')+'</td><td class="r num c-cust">'+r.cust+(r.cust===1?' Kunde':' Kunden')+'</td><td class="c-note">'+esc(r.note)+'</td><td class="r c-act"><button type="button" class="link" data-edit="'+r.id+'">Ändern</button><button type="button" class="link" data-del="'+r.id+'">Löschen</button></td></tr>';
+      }).join('')+'<tr class="sum"><td colspan="3" class="c-date">Summe '+MONTHS[selM]+'</td><td class="r num c-amount">'+eur.format(t.sales)+(tw?'<div class="walter">Anteil Walter '+eur.format(tw)+'</div><div class="walter">bleibt '+eur.format(t.sales-tw)+'</div>':'')+'</td><td class="r num c-cust">'+int.format(t.cust)+' Kunden</td><td colspan="2" class="c-act"></td></tr>';
     }
   }
 
@@ -326,7 +347,7 @@
     var b=e.target.closest('button');if(!b)return;
     if(b.dataset.edit){
       var r=byId(+b.dataset.edit);if(!r)return;
-      editId=r.id;$('fDate').value=r.date;$('fMethod').value=r.method;$('fSales').value=r.amount;$('fCust').value=r.cust;$('fNote').value=r.note;showDay();
+      editId=r.id;$('fDate').value=r.date;$('fMethod').value=r.method;$('fSales').value=r.amount;$('fCust').value=r.cust;$('fNote').value=r.note;showDay();walterForm();
       $('btnSave').textContent='Änderung speichern';$('btnCancel').hidden=false;
       $('fSales').focus();window.scrollTo({top:$('form').offsetTop-80,behavior:'smooth'});
     }
@@ -613,7 +634,7 @@
     $('paySchon').textContent=ub.length?'Schon übernommen: '+ub.map(function(p){return fmtDate(p.date)+' ('+eur.format(p.amount)+')'}).join(', ')+'. Speichern trägt die Zahlung noch einmal ein.':'';
     $('pDate').value=heuteIso();$('pMethod').value=a.za||'';$('pSales').value=a.betrag!=null?a.betrag:'';
     $('pCust').value='1';$('pNote').value=zahlNotiz(a);$('payMsg').textContent='';$('paySave').disabled=false;
-    $('payDlg').showModal();
+    walterPay();$('payDlg').showModal();
   }
   function payZu(){payA=null;if($('payDlg').open)$('payDlg').close()}
   $('payAbbr').addEventListener('click',payZu);
