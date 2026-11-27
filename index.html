@@ -74,7 +74,7 @@ button.link:hover{color:var(--accent)}
 .bar .track{display:flex;align-items:flex-end;justify-content:center}
 .bar .fill{width:70%;max-width:34px;border-radius:5px 5px 2px 2px;background:var(--accent);min-height:2px}
 .bar .v{color:var(--muted)} .bar .d{font-weight:600}
-form.entry{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:10px;align-items:end}
+form.entry{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,.7fr) minmax(0,1fr) minmax(0,1.2fr) auto;gap:10px;align-items:end}
 form.entry label{display:grid;gap:4px;font-size:.8rem;color:var(--muted);font-weight:600;min-width:0}
 form.entry input,form.entry select{width:100%}
 .form-btns{display:flex;gap:8px}
@@ -217,6 +217,7 @@ dialog.dlg::backdrop{background:rgba(0,0,0,.65)}
 /* Anteil Walter (ab 01.12.2026) */
 .walter{font-size:.8rem;font-weight:500;font-family:var(--f-body,inherit);color:var(--gold)}
 .walter:empty,.walter-hint:empty{display:none}
+@media (max-width:860px){label[for="fWAnteil"]{grid-column:1/-1}}
 .walter-hint{margin-top:8px;font-size:.92rem;font-weight:600;color:var(--gold)}
 </style>
 </head>
@@ -275,6 +276,7 @@ dialog.dlg::backdrop{background:rgba(0,0,0,.65)}
       <label for="fMethod">Zahlungsart<select id="fMethod" required></select></label>
       <label for="fSales">Betrag (€)<input id="fSales" type="number" min="0" step="0.01" inputmode="decimal" required placeholder="z. B. 50,00"></label>
       <label for="fCust">Kunden<input id="fCust" type="number" min="0" step="1" inputmode="numeric" required></label>
+      <label for="fWAnteil">Anteil Walter (€)<input id="fWAnteil" type="number" min="0" step="0.01" inputmode="decimal" placeholder="auto" title="Leer lassen = Vorschlag übernehmen. Eigene Zahl = eigener Anteil."></label>
       <label for="fNote">Notiz<input id="fNote" type="text" placeholder="optional"></label>
       <div class="form-btns"><button class="primary" type="submit" id="btnSave">Speichern</button><button type="button" id="btnCancel" hidden>Abbrechen</button></div>
     </form>

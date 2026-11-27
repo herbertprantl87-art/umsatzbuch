@@ -153,8 +153,9 @@
   }
 
   // Einträge als verschlüsselte Objekte: t:'z' Zahlung, t:'g' Monatsziel, t:'a' Auftrag
-  function payObj(d,m,b,k,n){return {t:'z',d:d,a:m,b:b,k:k,n:n||''}}
-  function fromObj(id,o){return {id:id,date:o.d,method:o.a,amount:+o.b,cust:+o.k,note:o.n||''}}
+  // w = Anteil Walter von Hand (fehlt = automatisch berechnen)
+  function payObj(d,m,b,k,n,w){var o={t:'z',d:d,a:m,b:b,k:k,n:n||''};if(w!=null)o.w=w;return o}
+  function fromObj(id,o){return {id:id,date:o.d,method:o.a,amount:+o.b,cust:+o.k,note:o.n||'',share:o.w==null||o.w===''?null:+o.w}}
 
   async function loadAll(){
     $('app').classList.add('loading');
@@ -221,10 +222,10 @@
   $('selMonth').onchange=function(){selM=+this.value;render()};
   $('selYear').onchange=function(){selY=+this.value;render()};
   function resetForm(){
-    editId=null;$('fSales').value='';$('fCust').value='1';$('fNote').value='';
+    editId=null;$('fSales').value='';$('fCust').value='1';$('fNote').value='';$('fWAnteil').value='';
     $('btnSave').textContent='Speichern';$('btnCancel').hidden=true;walterForm();
   }
-  ['fDate','fSales','fCust'].forEach(function(id){$(id).addEventListener('input',walterForm);$(id).addEventListener('change',walterForm)});
+  ['fDate','fSales','fCust','fWAnteil'].forEach(function(id){$(id).addEventListener('input',walterForm);$(id).addEventListener('change',walterForm)});
   ['pDate','pSales','pCust'].forEach(function(id){$(id).addEventListener('input',walterPay);$(id).addEventListener('change',walterPay)});
   $('fDate').value=iso(now.getFullYear(),now.getMonth(),now.getDate());
   $('fDate').addEventListener('input',showDay);
@@ -249,13 +250,21 @@
     if(!d||d<WALTER_AB||!(b>0))return 0;
     k=k>0?k:1;return k*viertel(b/k);
   }
-  function walterSumme(rows){var w=0;rows.forEach(function(r){w+=walter(r.date,r.amount,r.cust)});return w}
+  // Anteil einer gespeicherten Zahlung: von Hand eingetragen, sonst automatisch
+  function anteil(r){return r.share!=null?r.share:walter(r.date,r.amount,r.cust)}
+  function walterSumme(rows){var w=0;rows.forEach(function(r){w+=anteil(r)});return w}
   // Hinweis unter dem Eingabefeld: "Anteil Walter 15,00 € · bleibt 45,00 €"
-  function walterHinweis(el,d,b,k){
-    var s=betragIn(b),w=s>0?walter(d,s,parseInt(k,10)):0;
-    el.textContent=w?'Anteil Walter '+eur.format(w)+' · bleibt '+eur.format(s-w):'';
+  function walterHinweis(el,d,b,k,hand){
+    if(hand!=null&&isNaN(hand))hand=null;
+    var s=betragIn(b),w=hand!=null?hand:(s>0?walter(d,s,parseInt(k,10)):0);
+    el.textContent=(w||hand!=null)&&s>0?'Anteil Walter '+eur.format(w)+(hand!=null?' (von Hand)':'')+' · bleibt '+eur.format(s-w):'';
   }
-  function walterForm(){walterHinweis($('fWalter'),$('fDate').value,$('fSales').value,$('fCust').value)}
+  // Feld "Anteil Walter": grau steht der Vorschlag, leer lassen = Vorschlag übernehmen, eine Zahl = eigener Anteil
+  function walterForm(){
+    var s=betragIn($('fSales').value),auto=s>0?walter($('fDate').value,s,parseInt($('fCust').value,10)):0;
+    $('fWAnteil').placeholder=auto?String(auto)+' (auto)':'auto';
+    walterHinweis($('fWalter'),$('fDate').value,$('fSales').value,$('fCust').value,betragIn($('fWAnteil').value));
+  }
   function walterPay(){walterHinweis($('pWalter'),$('pDate').value,$('pSales').value,$('pCust').value)}
   function cmp(cur,prev,fmt){
     if(!prev) return 'Vormonat: keine Daten';
@@ -333,8 +342,8 @@
     if(!rows.length){tb.innerHTML='<tr><td colspan="7" class="empty">Für '+MONTHS[selM]+' '+selY+' ist noch nichts eingetragen. Oben einfach die erste Zahlung speichern.</td></tr>';}
     else{
       tb.innerHTML=rows.map(function(r){
-        var d=parseIso(r.date),w=walter(r.date,r.amount,r.cust);
-        return '<tr><td class="c-date num">'+fmtDate(r.date)+'</td><td class="c-day">'+WD[d.getDay()]+'</td><td class="c-method">'+esc(r.method)+'</td><td class="r num c-amount">'+eur.format(r.amount)+(w?'<div class="walter">Anteil Walter '+eur.format(w)+'</div>':'')+'</td><td class="r num c-cust">'+r.cust+(r.cust===1?' Kunde':' Kunden')+'</td><td class="c-note">'+esc(r.note)+'</td><td class="r c-act"><button type="button" class="link" data-edit="'+r.id+'">Ändern</button><button type="button" class="link" data-del="'+r.id+'">Löschen</button></td></tr>';
+        var d=parseIso(r.date),w=anteil(r);
+        return '<tr><td class="c-date num">'+fmtDate(r.date)+'</td><td class="c-day">'+WD[d.getDay()]+'</td><td class="c-method">'+esc(r.method)+'</td><td class="r num c-amount">'+eur.format(r.amount)+(w||r.share!=null?'<div class="walter">Anteil Walter '+eur.format(w)+(r.share!=null?' (von Hand)':'')+'</div>':'')+'</td><td class="r num c-cust">'+r.cust+(r.cust===1?' Kunde':' Kunden')+'</td><td class="c-note">'+esc(r.note)+'</td><td class="r c-act"><button type="button" class="link" data-edit="'+r.id+'">Ändern</button><button type="button" class="link" data-del="'+r.id+'">Löschen</button></td></tr>';
       }).join('')+'<tr class="sum"><td colspan="3" class="c-date">Summe '+MONTHS[selM]+'</td><td class="r num c-amount">'+eur.format(t.sales)+(tw?'<div class="walter">Anteil Walter '+eur.format(tw)+'</div><div class="walter">bleibt '+eur.format(t.sales-tw)+'</div>':'')+'</td><td class="r num c-cust">'+int.format(t.cust)+' Kunden</td><td colspan="2" class="c-act"></td></tr>';
     }
   }
@@ -347,7 +356,7 @@
     var b=e.target.closest('button');if(!b)return;
     if(b.dataset.edit){
       var r=byId(+b.dataset.edit);if(!r)return;
-      editId=r.id;$('fDate').value=r.date;$('fMethod').value=r.method;$('fSales').value=r.amount;$('fCust').value=r.cust;$('fNote').value=r.note;showDay();walterForm();
+      editId=r.id;$('fDate').value=r.date;$('fMethod').value=r.method;$('fSales').value=r.amount;$('fCust').value=r.cust;$('fNote').value=r.note;$('fWAnteil').value=r.share!=null?r.share:'';showDay();walterForm();
       $('btnSave').textContent='Änderung speichern';$('btnCancel').hidden=false;
       $('fSales').focus();window.scrollTo({top:$('form').offsetTop-80,behavior:'smooth'});
     }
@@ -369,7 +378,9 @@
     e.preventDefault();
     var d=$('fDate').value,m=$('fMethod').value,s=parseFloat(String($('fSales').value).replace(',','.')),c=parseInt($('fCust').value,10);
     if(!d||METHODS.indexOf(m)<0||isNaN(s)||isNaN(c)){flash('Bitte Datum, Zahlungsart, Betrag und Kunden ausfüllen.');return}
-    var o=payObj(d,m,Math.round(s*100)/100,c,$('fNote').value.trim());
+    var w=betragIn($('fWAnteil').value);
+    if(w!=null&&(isNaN(w)||w>s)){flash('Anteil Walter bitte leer lassen oder eine Zahl zwischen 0 und dem Betrag eintragen.');return}
+    var o=payObj(d,m,Math.round(s*100)/100,c,$('fNote').value.trim(),w);
     var daten=await enc(o);
     var r=editId
       ? await sb.from('eintraege').update({daten:daten}).eq('user_id',user.id).eq('id',editId).select('id').single()
