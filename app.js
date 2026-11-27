@@ -3,6 +3,8 @@
   var WD=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
   var WD_SHORT=['Mo','Di','Mi','Do','Fr','Sa','So'];
   var METHODS=['Amazon Gutschein','Paysafe','Überweisung'];
+  var WALTER_AB='2026-12-01'; // ab diesem Tag bekommt Walter seinen Anteil (siehe walter())
+  var wHand=false; // true = der Anteil Walter im Formular wurde von Hand eingetippt
   var eur=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'});
   var eur0=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
   var int=new Intl.NumberFormat('de-DE');
@@ -222,10 +224,12 @@
   $('selMonth').onchange=function(){selM=+this.value;render()};
   $('selYear').onchange=function(){selY=+this.value;render()};
   function resetForm(){
-    editId=null;$('fSales').value='';$('fCust').value='1';$('fNote').value='';$('fWAnteil').value='';
+    editId=null;$('fSales').value='';$('fCust').value='1';$('fNote').value='';wHand=false;$('fWAnteil').value='';
     $('btnSave').textContent='Speichern';$('btnCancel').hidden=true;walterForm();
   }
-  ['fDate','fSales','fCust','fWAnteil'].forEach(function(id){$(id).addEventListener('input',walterForm);$(id).addEventListener('change',walterForm)});
+  ['fDate','fSales','fCust'].forEach(function(id){$(id).addEventListener('input',walterForm);$(id).addEventListener('change',walterForm)});
+  $('fWAnteil').addEventListener('input',function(){wHand=this.value!=='';walterHinweis($('fWalter'),$('fDate').value,$('fSales').value,$('fCust').value,walterEigen())});
+  $('fWAnteil').addEventListener('blur',function(){if(this.value===''){wHand=false;walterForm()}});
   ['pDate','pSales','pCust'].forEach(function(id){$(id).addEventListener('input',walterPay);$(id).addEventListener('change',walterPay)});
   $('fDate').value=iso(now.getFullYear(),now.getMonth(),now.getDate());
   $('fDate').addEventListener('input',showDay);
@@ -244,7 +248,6 @@
   // Anteil Walter (ab 01.12.2026): ein Viertel je Kunde, auf ganze Euro gerundet, bei genau ,50 abgerundet.
   // Beispiele: 15 € -> 4, 20 -> 5, 25 -> 6, 30 -> 7, 35 -> 9, 40 -> 10, 50 -> 12, 60 -> 15, 100 -> 25.
   // Hat eine Zahlung mehrere Kunden, wird mit dem Betrag je Kunde gerechnet (40 € mit 2 Kunden = 2 x 5 €).
-  var WALTER_AB='2026-12-01';
   function viertel(b){var c=Math.round(b*100);return Math.max(0,Math.ceil(c/400-0.5))}
   function walter(d,b,k){
     if(!d||d<WALTER_AB||!(b>0))return 0;
@@ -259,11 +262,15 @@
     var s=betragIn(b),w=hand!=null?hand:(s>0?walter(d,s,parseInt(k,10)):0);
     el.textContent=(w||hand!=null)&&s>0?'Anteil Walter '+eur.format(w)+(hand!=null?' (von Hand)':'')+' · bleibt '+eur.format(s-w):'';
   }
-  // Feld "Anteil Walter": grau steht der Vorschlag, leer lassen = Vorschlag übernehmen, eine Zahl = eigener Anteil
+  // Feld "Anteil Walter": der Vorschlag steht direkt im Feld und rechnet bei Betrag/Kunden/Datum mit.
+  // Tippt man selbst eine Zahl ein (wHand), bleibt sie stehen. Feld leeren = wieder Vorschlag.
+  function walterAuto(){var s=betragIn($('fSales').value);return s>0?walter($('fDate').value,s,parseInt($('fCust').value,10)):0}
+  function walterEigen(){var v=betragIn($('fWAnteil').value);return wHand&&v!=null&&v!==walterAuto()?v:null}
   function walterForm(){
-    var s=betragIn($('fSales').value),auto=s>0?walter($('fDate').value,s,parseInt($('fCust').value,10)):0;
-    $('fWAnteil').placeholder=auto?String(auto)+' (auto)':'auto';
-    walterHinweis($('fWalter'),$('fDate').value,$('fSales').value,$('fCust').value,betragIn($('fWAnteil').value));
+    var f=$('fWAnteil'),d=$('fDate').value,auto=walterAuto();
+    if(!wHand)f.value=auto?String(auto):'';
+    f.placeholder=d&&d<WALTER_AB?'ab 01.12.':'0';
+    walterHinweis($('fWalter'),d,$('fSales').value,$('fCust').value,walterEigen());
   }
   function walterPay(){walterHinweis($('pWalter'),$('pDate').value,$('pSales').value,$('pCust').value)}
   function cmp(cur,prev,fmt){
@@ -279,6 +286,10 @@
     state.pay.forEach(function(p){if(p.date===tag)sum+=p.amount});
     $('kToday').textContent=eur.format(sum);
     $('kTodayLabel').textContent=tag===heute?'Umsatz heute':'Umsatz am '+WD_SHORT[(parseIso(tag).getDay()+6)%7]+', '+fmtDate(tag);
+    // Kasten "Anteil Walter gesamt": alle Anteile zusammengezählt, dazu der Anteil am gewählten Tag
+    var wGes=walterSumme(state.pay),wTag=walterSumme(state.pay.filter(function(p){return p.date===tag}));
+    $('kWGes').textContent=eur.format(wGes);
+    $('kWTag').textContent=(tag===heute?'Heute':'Am '+fmtDate(tag))+': '+eur.format(wTag)+' · zählt ab 01.12.2026';
   }
 
   function render(){
@@ -356,7 +367,7 @@
     var b=e.target.closest('button');if(!b)return;
     if(b.dataset.edit){
       var r=byId(+b.dataset.edit);if(!r)return;
-      editId=r.id;$('fDate').value=r.date;$('fMethod').value=r.method;$('fSales').value=r.amount;$('fCust').value=r.cust;$('fNote').value=r.note;$('fWAnteil').value=r.share!=null?r.share:'';showDay();walterForm();
+      editId=r.id;$('fDate').value=r.date;$('fMethod').value=r.method;$('fSales').value=r.amount;$('fCust').value=r.cust;$('fNote').value=r.note;wHand=r.share!=null;$('fWAnteil').value=wHand?r.share:'';showDay();walterForm();
       $('btnSave').textContent='Änderung speichern';$('btnCancel').hidden=false;
       $('fSales').focus();window.scrollTo({top:$('form').offsetTop-80,behavior:'smooth'});
     }
@@ -378,7 +389,7 @@
     e.preventDefault();
     var d=$('fDate').value,m=$('fMethod').value,s=parseFloat(String($('fSales').value).replace(',','.')),c=parseInt($('fCust').value,10);
     if(!d||METHODS.indexOf(m)<0||isNaN(s)||isNaN(c)){flash('Bitte Datum, Zahlungsart, Betrag und Kunden ausfüllen.');return}
-    var w=betragIn($('fWAnteil').value);
+    var w=walterEigen();
     if(w!=null&&(isNaN(w)||w>s)){flash('Anteil Walter bitte leer lassen oder eine Zahl zwischen 0 und dem Betrag eintragen.');return}
     var o=payObj(d,m,Math.round(s*100)/100,c,$('fNote').value.trim(),w);
     var daten=await enc(o);
