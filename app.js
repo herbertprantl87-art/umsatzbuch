@@ -437,8 +437,8 @@
   function tgHtml(tg){
     var n=String(tg||'').trim().replace(/^@/,'');
     if(!n)return '';
-    // Klick öffnet den Chat direkt in Telegram Web (Browser), nicht in der App
-    if(/^[A-Za-z0-9_]{4,32}$/.test(n))return '<a href="https://web.telegram.org/k/#@'+n+'" target="_blank" rel="noopener noreferrer">@'+n+'</a>';
+    // Klick öffnet den Chat direkt in Telegram Web (Version A, im Browser), nicht in der App
+    if(/^[A-Za-z0-9_]{4,32}$/.test(n))return '<a href="https://web.telegram.org/a/#?tgaddr='+encodeURIComponent('tg://resolve?domain='+n)+'" target="_blank" rel="noopener noreferrer">@'+n+'</a>';
     return '<span>'+esc(tg)+'</span>';
   }
   // In die Zwischenablage: erst der neue Weg, sonst der alte über ein unsichtbares Textfeld
