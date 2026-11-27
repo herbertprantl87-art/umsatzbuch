@@ -197,9 +197,9 @@
   }
   $('btnExport').addEventListener('click',function(){
     if(!$('viewAuftraege').hidden){
-      var al=['Art;Telegram;Von;Bis;Was;Betrag;Zahlungsart;Im Umsatzbuch am;Status;Erledigt am'];
+      var al=['Art;Name;Telegram;Adresse;Von;Bis;Was;Betrag;Zahlungsart;Im Umsatzbuch am;Status;Erledigt am'];
       state.auf.slice().sort(function(a,b){return a.id-b.id}).forEach(function(x){
-        al.push([ARTEN[x.art],q(x.tg.replace(/^@/,'')),x.von?fmtDate(x.von):'',x.bis?fmtDate(x.bis):'',q(x.note),x.betrag!=null?x.betrag.toFixed(2).replace('.',','):'',x.za,uebernommen(x).map(function(p){return fmtDate(p.date)}).join(' '),x.ok?'erledigt':'offen',x.okAm?fmtDate(x.okAm):''].join(';'));
+        al.push([ARTEN[x.art],q(x.name),q(x.tg.replace(/^@/,'')),q(x.adr.replace(/\r?\n/g,', ')),x.von?fmtDate(x.von):'',x.bis?fmtDate(x.bis):'',q(x.note),x.betrag!=null?x.betrag.toFixed(2).replace('.',','):'',x.za,uebernommen(x).map(function(p){return fmtDate(p.date)}).join(' '),x.ok?'erledigt':'offen',x.okAm?fmtDate(x.okAm):''].join(';'));
       });
       saveCsv(al,'auftraege-sicherung');
       flash('Sicherung mit '+state.auf.length+' Aufträgen heruntergeladen. Bitte sicher aufbewahren, die Datei ist nicht verschlüsselt.',$('aMsg'));
@@ -375,9 +375,9 @@
   var ARTEN={flat:'Flat',versand:'Bestellung versenden',sonst:'Sonstiges'};
   var aEditId=null,aPendingDel=null;
   // Betrag (b), Zahlungsart (za) und die ids der schon übernommenen Zahlungen (zids) sind freiwillig
-  function fromAuf(id,o){return {id:id,art:ARTEN[o.art]?o.art:'sonst',tg:o.tg||'',von:o.von||'',bis:o.bis||'',note:o.n||'',ok:!!o.ok,okAm:o.okAm||'',
+  function fromAuf(id,o){return {id:id,art:ARTEN[o.art]?o.art:'sonst',tg:o.tg||'',name:o.nm||'',adr:o.adr||'',von:o.von||'',bis:o.bis||'',note:o.n||'',ok:!!o.ok,okAm:o.okAm||'',
     betrag:o.b===undefined||o.b===null||o.b===''||isNaN(+o.b)?null:+o.b,za:METHODS.indexOf(o.za)>-1?o.za:'',zids:Array.isArray(o.zids)?o.zids.map(Number):[]}}
-  function aufObj(a){return {t:'a',art:a.art,tg:a.tg,von:a.von,bis:a.bis,n:a.note,ok:a.ok?1:0,okAm:a.okAm||'',b:a.betrag==null?'':a.betrag,za:a.za||'',zids:a.zids||[]}}
+  function aufObj(a){return {t:'a',art:a.art,tg:a.tg,nm:a.name||'',adr:a.adr||'',von:a.von,bis:a.bis,n:a.note,ok:a.ok?1:0,okAm:a.okAm||'',b:a.betrag==null?'':a.betrag,za:a.za||'',zids:a.zids||[]}}
   // Betragsfeld lesen: leer = null, ungültig = NaN, sonst auf Cent gerundet
   function betragIn(v){v=String(v==null?'':v).trim().replace(',','.');if(v==='')return null;var n=parseFloat(v);return isNaN(n)||n<0?NaN:Math.round(n*100)/100}
   // Zahlungen im Umsatzbuch, die aus diesem Auftrag übernommen wurden (gelöschte fallen weg)
@@ -437,9 +437,18 @@
   function tgHtml(tg){
     var n=String(tg||'').trim().replace(/^@/,'');
     if(!n)return '';
-    if(/^[A-Za-z0-9_]{4,32}$/.test(n))return '<a href="https://t.me/'+n+'" target="_blank" rel="noopener noreferrer">@'+n+'</a>';
+    // Klick öffnet den Chat direkt in Telegram Web (Browser), nicht in der App
+    if(/^[A-Za-z0-9_]{4,32}$/.test(n))return '<a href="https://web.telegram.org/k/#@'+n+'" target="_blank" rel="noopener noreferrer">@'+n+'</a>';
     return '<span>'+esc(tg)+'</span>';
   }
+  // In die Zwischenablage: erst der neue Weg, sonst der alte über ein unsichtbares Textfeld
+  async function kopiere(t){
+    try{await navigator.clipboard.writeText(t);return true}catch(e){}
+    var ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand('copy')}catch(e){}ta.remove();return ok;
+  }
+  // Wer: Name und/oder @-Name, z. B. "Anna @anna"
+  function wer(a){return [a.name,a.tg].filter(Boolean).join(' ')}
   function zeitraum(a){
     if(a.art==='flat'){
       if(a.von&&a.bis)return (a.von.slice(0,4)===a.bis.slice(0,4)?fmtDate(a.von).slice(0,6):fmtDate(a.von))+' – '+fmtDate(a.bis);
@@ -454,12 +463,14 @@
     if(s.txt)teile.push('<b class="st-'+s.cls+'">'+esc(s.txt)+'</b>');
     if(a.ok&&a.okAm)teile.push('erledigt am '+fmtDate(a.okAm));
     return '<div class="auf'+(s.cls?' st-'+s.cls:'')+'">'+
-      '<input type="checkbox" class="auf-chk" data-tick="'+a.id+'"'+(a.ok?' checked':'')+' aria-label="'+esc((a.ok?'Wieder offen: ':'Erledigt: ')+ARTEN[a.art]+' '+a.tg)+'">'+
-      '<div class="auf-main"><div class="auf-top"><span class="badge">'+ARTEN[a.art]+'</span>'+tgHtml(a.tg)+'</div>'+
+      '<input type="checkbox" class="auf-chk" data-tick="'+a.id+'"'+(a.ok?' checked':'')+' aria-label="'+esc((a.ok?'Wieder offen: ':'Erledigt: ')+ARTEN[a.art]+' '+wer(a))+'">'+
+      '<div class="auf-main"><div class="auf-top"><span class="badge">'+ARTEN[a.art]+'</span>'+(a.name?'<span>'+esc(a.name)+'</span>':'')+tgHtml(a.tg)+'</div>'+
       (teile.length?'<div class="auf-when">'+teile.join(' · ')+'</div>':'')+
       aufGeld(a)+
+      (a.adr?'<div class="auf-adr">'+esc(a.adr)+'</div>':'')+
       (a.note?'<div class="auf-note">'+esc(a.note)+'</div>':'')+'</div>'+
       '<div class="auf-act">'+(a.betrag!=null?'<button type="button" class="link" data-apay="'+a.id+'">Ins Umsatzbuch</button>':'')+
+      (a.adr?'<button type="button" class="link" data-acopy="'+a.id+'">Adresse kopieren</button>':'')+
       '<button type="button" class="link" data-aedit="'+a.id+'">Ändern</button><button type="button" class="link" data-adel="'+a.id+'">Löschen</button></div></div>';
   }
   // Zeile "50,00 € · Paysafe · im Umsatzbuch am 26.11."
@@ -489,11 +500,10 @@
     var art=$('aArt').value;
     $('aVonWrap').hidden=art!=='flat';$('aQuick').hidden=art!=='flat';
     $('aBisLabel').textContent=art==='flat'?'Bis':art==='versand'?'Versenden bis':'Fällig am';
-    $('aTg').required=art!=='sonst';
     $('aVon').required=art==='flat';$('aBis').required=art==='flat';
   }
   function aReset(){
-    aEditId=null;$('aTg').value='';$('aVon').value=heuteIso();$('aBis').value='';$('aNote').value='';$('aBetrag').value='';$('aZa').value='';
+    aEditId=null;$('aTg').value='';$('aName').value='';$('aAdr').value='';$('aVon').value=heuteIso();$('aBis').value='';$('aNote').value='';$('aBetrag').value='';$('aZa').value='';
     $('aSave').textContent='Speichern';$('aCancel').hidden=true;aFormArt();aDauer.leer();
   }
   async function aSpeichern(a){
@@ -510,18 +520,19 @@
   $('aForm').addEventListener('submit',async function(e){
     e.preventDefault();
     var art=$('aArt').value,tg=$('aTg').value.trim(),von=art==='flat'?$('aVon').value:'',bis=$('aBis').value,n=$('aNote').value.trim();
+    var name=$('aName').value.trim(),adr=$('aAdr').value.trim();
     if(!ARTEN[art])return;
-    if(art!=='sonst'&&!tg){flash('Bitte den Telegram-Namen eintragen.',$('aMsg'));return}
     if(art==='flat'&&(!von||!bis)){flash('Bitte bei der Flat Von und Bis eintragen.',$('aMsg'));return}
     if(art==='flat'&&bis<von){flash('Das Ende liegt vor dem Beginn.',$('aMsg'));return}
-    if(art==='sonst'&&!tg&&!n){flash('Bitte eintragen, was zu tun ist.',$('aMsg'));return}
+    // Name, @-Name und Adresse sind freiwillig, aber irgendetwas muss zeigen, worum es geht
+    if(!tg&&!name&&!adr&&!n){flash('Bitte Name, Telegram-Name oder was zu tun ist eintragen.',$('aMsg'));return}
     var betrag=betragIn($('aBetrag').value);
     if(isNaN(betrag)){flash('Der Betrag stimmt nicht.',$('aMsg'));return}
     var alt=aEditId?aById(aEditId):null;
-    var a={id:alt?alt.id:null,art:art,tg:tg,von:von,bis:bis,note:n,ok:alt?alt.ok:false,okAm:alt?alt.okAm:'',betrag:betrag,za:$('aZa').value,zids:alt?alt.zids:[]};
+    var a={id:alt?alt.id:null,art:art,tg:tg,name:name,adr:adr,von:von,bis:bis,note:n,ok:alt?alt.ok:false,okAm:alt?alt.okAm:'',betrag:betrag,za:$('aZa').value,zids:alt?alt.zids:[]};
     if(!(await aSpeichern(a)))return;
     aReset();renderAuf();
-    flash((alt?'Geändert: ':'Gespeichert: ')+ARTEN[art]+(tg?' '+tg:'')+'.',$('aMsg'));
+    flash((alt?'Geändert: ':'Gespeichert: ')+ARTEN[art]+(wer(a)?' '+wer(a):'')+'.',$('aMsg'));
   });
   // Abhaken: rutscht nach unten zu "Erledigt"; dort wieder entfernen = wieder offen.
   // Bei einer Flat fragt erst ein Fenster, ob sie verlängert wird.
@@ -531,7 +542,7 @@
     if(!(await aSpeichern(neu))){if(c){c.checked=!ok;c.disabled=false}return false}
     if(aEditId===a.id)aReset();
     renderAuf();
-    if(!still)flash((ok?'Erledigt: ':'Wieder offen: ')+ARTEN[a.art]+(a.tg?' '+a.tg:'')+'.',$('aMsg'));
+    if(!still)flash((ok?'Erledigt: ':'Wieder offen: ')+ARTEN[a.art]+(wer(a)?' '+wer(a):'')+'.',$('aMsg'));
     return true;
   }
   $('viewAuftraege').addEventListener('change',async function(e){
@@ -546,7 +557,7 @@
   function extOeffnen(a,c){
     ext={a:a,c:c};
     var start=a.bis?plusTage(a.bis,1):heuteIso();if(start<heuteIso())start=heuteIso();
-    $('extText').textContent=(a.tg||'Flat')+(zeitraum(a)?' · bisher '+zeitraum(a):'');
+    $('extText').textContent=(wer(a)||'Flat')+(zeitraum(a)?' · bisher '+zeitraum(a):'');
     $('extVon').value=start;$('extBis').value='';$('extMsg').textContent='';
     $('extBetrag').value=a.betrag!=null?a.betrag:'';$('extZa').value=a.za||'';$('extPay').checked=false;
     extDauer.setze('1m');
@@ -567,20 +578,20 @@
     if(mitZahlung&&!za){$('extMsg').textContent='Für die Zahlung bitte die Zahlungsart wählen.';return}
     var e=extZu();
     if(!(await abhaken(e.a,true,e.c,true)))return;
-    var neu={id:null,art:'flat',tg:e.a.tg,von:von,bis:bis,note:e.a.note,ok:false,okAm:'',betrag:betrag,za:za,zids:[]};
+    var neu={id:null,art:'flat',tg:e.a.tg,name:e.a.name,adr:e.a.adr,von:von,bis:bis,note:e.a.note,ok:false,okAm:'',betrag:betrag,za:za,zids:[]};
     // Häkchen gesetzt: Zahlung heute mit 1 Kunde eintragen und im neuen Auftrag merken
     var pid=null;
     if(mitZahlung){pid=await zahlungNeu(payObj(heuteIso(),za,betrag,1,zahlNotiz(neu)));if(pid!=null)neu.zids=[pid]}
     if(!(await aSpeichern(neu))){renderAuf();return}
     renderAuf();
-    var t='Verlängert: '+(e.a.tg||'Flat')+' '+zeitraum(neu)+'.';
+    var t='Verlängert: '+(wer(e.a)||'Flat')+' '+zeitraum(neu)+'.';
     if(mitZahlung)t+=pid!=null?' '+eur.format(betrag)+' ist im Umsatzbuch.':' Die Zahlung konnte aber nicht gespeichert werden.';
     flash(t,$('aMsg'));
   });
 
   // Ins Umsatzbuch übernehmen: kleines Fenster, alles vorausgefüllt und änderbar.
   // Der Auftrag merkt sich die Zahlung (zids); nochmal übernehmen geht, mit Hinweis.
-  function zahlNotiz(a){return ARTEN[a.art]+(a.tg?' '+a.tg:'')+(a.art==='flat'&&zeitraum(a)?' '+zeitraum(a):'')}
+  function zahlNotiz(a){return ARTEN[a.art]+(wer(a)?' '+wer(a):'')+(a.art==='flat'&&zeitraum(a)?' '+zeitraum(a):'')}
   async function zahlungNeu(o,msgEl){
     var r=await sb.from('eintraege').insert({user_id:user.id,daten:await enc(o)}).select('id').single();
     if(r.error){flash('Zahlung nicht gespeichert: '+r.error.message,msgEl||$('aMsg'));return null}
@@ -591,7 +602,7 @@
   var payA=null;
   function payOeffnen(a){
     payA=a;var ub=uebernommen(a);
-    $('payText').textContent=ARTEN[a.art]+(a.tg?' '+a.tg:'')+(zeitraum(a)?' · '+zeitraum(a):'');
+    $('payText').textContent=ARTEN[a.art]+(wer(a)?' '+wer(a):'')+(zeitraum(a)?' · '+zeitraum(a):'');
     $('paySchon').hidden=!ub.length;
     $('paySchon').textContent=ub.length?'Schon übernommen: '+ub.map(function(p){return fmtDate(p.date)+' ('+eur.format(p.amount)+')'}).join(', ')+'. Speichern trägt die Zahlung noch einmal ein.':'';
     $('pDate').value=heuteIso();$('pMethod').value=a.za||'';$('pSales').value=a.betrag!=null?a.betrag:'';
@@ -616,15 +627,20 @@
     flash('Ins Umsatzbuch übernommen: '+fmtDate(d)+', '+m+', '+eur.format(s)+'.',$('aMsg'));
   });
   $('viewAuftraege').addEventListener('click',async function(e){
-    var b=e.target.closest('button[data-aedit],button[data-adel],button[data-apay]');if(!b)return;
+    var b=e.target.closest('button[data-aedit],button[data-adel],button[data-apay],button[data-acopy]');if(!b)return;
     if(b.dataset.apay){var ap=aById(+b.dataset.apay);if(ap)payOeffnen(ap);return}
+    if(b.dataset.acopy){
+      var ac=aById(+b.dataset.acopy);if(!ac)return;
+      flash(await kopiere(ac.adr)?'Adresse kopiert.':'Kopieren ging nicht. Bitte die Adresse mit dem Finger markieren.',$('aMsg'));
+      return;
+    }
     if(b.dataset.aedit){
       var a=aById(+b.dataset.aedit);if(!a)return;
       aEditId=a.id;$('aArt').value=a.art;aFormArt();
-      $('aTg').value=a.tg;$('aVon').value=a.von;$('aBis').value=a.bis;$('aNote').value=a.note;aDauer.leer();
+      $('aName').value=a.name;$('aAdr').value=a.adr;$('aTg').value=a.tg;$('aVon').value=a.von;$('aBis').value=a.bis;$('aNote').value=a.note;aDauer.leer();
       $('aBetrag').value=a.betrag!=null?a.betrag:'';$('aZa').value=a.za;
       $('aSave').textContent='Änderung speichern';$('aCancel').hidden=false;
-      $('aTg').focus();window.scrollTo({top:$('aForm').offsetTop-80,behavior:'smooth'});
+      $('aName').focus();window.scrollTo({top:$('aForm').offsetTop-80,behavior:'smooth'});
       return;
     }
     // Löschen: die aus diesem Auftrag übernommenen Zahlungen werden im Umsatzbuch mitgelöscht

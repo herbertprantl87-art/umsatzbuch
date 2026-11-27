@@ -203,6 +203,12 @@ dialog.dlg::backdrop{background:rgba(0,0,0,.65)}
 .dlg label.chk{display:flex;gap:8px;align-items:flex-start;font-size:.9rem;cursor:pointer}
 .dlg label.chk input{width:auto;margin:3px 0 0;accent-color:var(--accent)}
 .dlg p.hinweis{color:var(--gold)}
+/* Name und Adresse im Auftrag */
+#aForm label[for="aName"]{grid-column:1}
+#aForm label[for="aAdr"]{grid-column:span 2}
+#aForm textarea{width:100%;min-width:0;resize:vertical;min-height:44px}
+.auf-adr{font-size:.92rem;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--fg)}
+@media (max-width:860px){#aForm label[for="aAdr"]{grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -336,7 +342,6 @@ Amazon Gesamt: 25€
     <h2>Auftrag eintragen</h2>
     <form class="entry" id="aForm">
       <label for="aArt">Art<select id="aArt"><option value="flat">Flat</option><option value="versand">Bestellung versenden</option><option value="sonst">Sonstiges</option></select></label>
-      <label for="aTg">Telegram-Name<input id="aTg" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="@name"></label>
       <label for="aVon" id="aVonWrap">Von<input id="aVon" type="date"></label>
       <label for="aBis"><span id="aBisLabel">Bis</span><input id="aBis" type="date"></label>
       <div class="quick" id="aQuick">
@@ -344,8 +349,11 @@ Amazon Gesamt: 25€
         <button type="button" data-dauer="7d">1 Woche</button><button type="button" data-dauer="14d">2 Wochen</button><button type="button" data-dauer="1m">1 Monat</button><button type="button" data-dauer="3m">3 Monate</button>
         <label for="aTage">oder <input id="aTage" type="number" min="1" step="1" inputmode="numeric"> Tage</label>
       </div>
+      <label for="aName">Name<input id="aName" type="text" autocomplete="off" placeholder="optional"></label>
+      <label for="aTg">Telegram-Name<input id="aTg" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="@name, optional"></label>
       <label for="aBetrag">Betrag (€)<input id="aBetrag" type="number" min="0" step="0.01" inputmode="decimal" placeholder="optional"></label>
       <label for="aZa">Zahlungsart<select id="aZa"></select></label>
+      <label for="aAdr">Adresse<textarea id="aAdr" rows="2" autocomplete="off" placeholder="optional, z. B. Musterstraße 1, 12345 Musterstadt"></textarea></label>
       <label for="aNote">Was ist zu tun?<input id="aNote" type="text" placeholder="optional, z. B. 2 Pakete"></label>
       <div class="form-btns"><button class="primary" type="submit" id="aSave">Speichern</button><button type="button" id="aCancel" hidden>Abbrechen</button></div>
     </form>
